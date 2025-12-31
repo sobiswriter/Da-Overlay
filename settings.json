@@ -3,6 +3,7 @@
     "model": "gemini-2.5-flash",
     "persona": "You're Anna, a cute girl, you're shy usually but open up to as you go on, you like to watch Anime, read Manga, into movies, tv series and Games. Don't break character!",
     "share_context": true,
+    "api_key": "AIzaSyD6-ETqEkRx0mYjIDUGJo6-LPmLtW8hxOA",
     "autopilot_intervals": [
         45,
         200,

@@ -42,6 +42,7 @@ class OverlayApp:
         # --- Settings Attributes ---
         # Using tk.StringVar for model so the dropdown updates automatically
         self.current_model = tk.StringVar() 
+        self.api_key_var = tk.StringVar() # NEW: For in-app API key management
         self.current_persona = ""
         self.settings_visible = False # State for the collapsible panel
         self.show_pinned_only = tk.BooleanVar(value=False)
@@ -247,11 +248,17 @@ class OverlayApp:
         tk.Label(self.settings_frame, text="Model:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=0, column=0, sticky="w", padx=10, pady=10)
         models = ["gemini-2.5-flash-lite-preview-06-17", "gemini-2.0-flash-preview-image-generation", "gemini-2.5-flash", "gemini-2.5-pro"]
         model_dropdown = ttk.Combobox(self.settings_frame, textvariable=self.current_model, values=models, state="readonly")
+        model_dropdown = ttk.Combobox(self.settings_frame, textvariable=self.current_model, values=models, state="readonly")
         model_dropdown.grid(row=0, column=1, sticky="ew", padx=10, pady=10)
+
+        # --- NEW: API Key Field ---
+        tk.Label(self.settings_frame, text="Gemini API Key:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=1, column=0, sticky="w", padx=10, pady=5)
+        self.api_key_entry = ttk.Entry(self.settings_frame, textvariable=self.api_key_var, show="*")
+        self.api_key_entry.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
 
         # --- NEW: Persona Preset Buttons ---
         self.preset_frame = tk.Frame(self.settings_frame, bg=self.C_WIDGET_BG)
-        self.preset_frame.grid(row=1, column=1, sticky="w", padx=10)
+        self.preset_frame.grid(row=2, column=1, sticky="w", padx=10)
 
         for key in PERSONA_PRESETS:
             # Create a button for each key in our dictionary
@@ -260,33 +267,33 @@ class OverlayApp:
                             relief="solid", bd=1, padx=4, pady=1, bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, activebackground=self.C_BUTTON_HOVER, borderwidth=0)
             btn.pack(side="left", padx=3)
 
-        tk.Label(self.settings_frame, text="Persona:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=2, column=0, sticky="nw", padx=10, pady=5)
+        tk.Label(self.settings_frame, text="Persona:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=3, column=0, sticky="nw", padx=10, pady=5)
         self.persona_text = tk.Text(self.settings_frame, height=5, font=(self.font_family, 11), relief="solid", bd=0, wrap="word", bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, insertbackground=self.C_TEXT_PRIMARY)
-        self.persona_text.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
+        self.persona_text.grid(row=3, column=1, sticky="ew", padx=10, pady=5)
 
-        tk.Label(self.settings_frame, text="Opacity:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=3, column=0, sticky="w", padx=10, pady=5)
+        tk.Label(self.settings_frame, text="Opacity:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=4, column=0, sticky="w", padx=10, pady=5)
         self.opacity_slider = ttk.Scale(self.settings_frame, from_=0.2, to=1.0, orient="horizontal", variable=self.opacity_var, command=self._on_opacity_change)
-        self.opacity_slider.grid(row=3, column=1, sticky="ew", padx=10, pady=5)
+        self.opacity_slider.grid(row=4, column=1, sticky="ew", padx=10, pady=5)
 
         # --- NEW: Theme Toggle ---
-        tk.Label(self.settings_frame, text="Theme:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=4, column=0, sticky="w", padx=10, pady=5)
+        tk.Label(self.settings_frame, text="Theme:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=5, column=0, sticky="w", padx=10, pady=5)
         self.theme_button = tk.Button(self.settings_frame, text="☀️ Light", command=self._toggle_theme, relief="solid", bd=1, padx=4, pady=1, bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, activebackground=self.C_BUTTON_HOVER, borderwidth=0)
-        self.theme_button.grid(row=4, column=1, sticky="w", padx=10, pady=5)
+        self.theme_button.grid(row=5, column=1, sticky="w", padx=10, pady=5)
 
         # --- NEW: Autopilot Intervals Entry ---
-        tk.Label(self.settings_frame, text="Autopilot Intervals:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=5, column=0, sticky="w", padx=10, pady=5)
+        tk.Label(self.settings_frame, text="Autopilot Intervals:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=6, column=0, sticky="w", padx=10, pady=5)
         self.autopilot_intervals_entry = ttk.Entry(self.settings_frame, textvariable=self.autopilot_intervals_var)
-        self.autopilot_intervals_entry.grid(row=5, column=1, sticky="ew", padx=10, pady=5)
-        tk.Label(self.settings_frame, text="(comma-separated seconds)", font=(self.font_family, 9), bg=self.C_WIDGET_BG, fg=self.C_TEXT_SECONDARY).grid(row=6, column=1, sticky="w", padx=10)
+        self.autopilot_intervals_entry.grid(row=6, column=1, sticky="ew", padx=10, pady=5)
+        tk.Label(self.settings_frame, text="(comma-separated seconds)", font=(self.font_family, 9), bg=self.C_WIDGET_BG, fg=self.C_TEXT_SECONDARY).grid(row=7, column=1, sticky="w", padx=10)
 
         # --- NEW: Autopilot Cooldown Entry ---
-        tk.Label(self.settings_frame, text="Autopilot Cooldown:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=7, column=0, sticky="w", padx=10, pady=5)
+        tk.Label(self.settings_frame, text="Autopilot Cooldown:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=8, column=0, sticky="w", padx=10, pady=5)
         self.autopilot_cooldown_entry = ttk.Entry(self.settings_frame, textvariable=self.autopilot_cooldown_var, width=10)
-        self.autopilot_cooldown_entry.grid(row=7, column=1, sticky="w", padx=10, pady=5)
+        self.autopilot_cooldown_entry.grid(row=8, column=1, sticky="w", padx=10, pady=5)
 
         # --- NEW: Tips & Hotkeys Section ---
         tips_frame = tk.Frame(self.settings_frame, bg=self.C_WIDGET_BG)
-        tips_frame.grid(row=8, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 0))
+        tips_frame.grid(row=9, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 0))
 
         tk.Label(tips_frame, text="Tips & Hotkeys:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).pack(anchor="w")
 
@@ -302,7 +309,7 @@ class OverlayApp:
 
         tk.Label(tips_frame, text=tips_text, font=(self.font_family, 10), justify="left", bg=self.C_WIDGET_BG, fg=self.C_TEXT_SECONDARY).pack(anchor="w", pady=5)
         save_button = ttk.Button(self.settings_frame, text="Save Settings", command=self.update_settings)
-        save_button.grid(row=9, column=1, sticky="e", padx=10, pady=10)
+        save_button.grid(row=10, column=1, sticky="e", padx=10, pady=10)
 
     def toggle_settings_panel(self):
         if self.settings_visible:
@@ -338,6 +345,7 @@ class OverlayApp:
             return # Stop the save process if input is invalid
 
         self.current_persona = self.persona_text.get("1.0", "end-1c").strip()
+        self.api_key = self.api_key_var.get().strip() # Update the active key
         self._save_settings()
         self.show_feedback("Settings saved!")
         self.toggle_settings_panel()
@@ -355,6 +363,12 @@ class OverlayApp:
                 self.current_model.set(settings.get("model", "gemini-2.5-flash-latest"))
                 self.current_persona = settings.get("persona", tars_persona)
                 self.share_context.set(settings.get("share_context", True))
+                self.api_key_var.set(settings.get("api_key", ""))
+                self.api_key = self.api_key_var.get()
+                
+                # If no API key is found, gently nudge the user to the settings panel
+                if not self.api_key:
+                    self.root.after(1000, lambda: (self.toggle_settings_panel(), self.show_feedback("Please enter your Gemini API key!")))
                 
                 self.autopilot_cooldown_seconds = settings.get("autopilot_cooldown_seconds", default_cooldown)
                 if not isinstance(self.autopilot_cooldown_seconds, int) or self.autopilot_cooldown_seconds <= 0:
@@ -393,6 +407,7 @@ class OverlayApp:
             "model": self.current_model.get(),
             "persona": self.current_persona,
             "share_context": self.share_context.get(),
+            "api_key": self.api_key_var.get(), # Persist the API key
             "autopilot_intervals": self.autopilot_intervals,
             "autopilot_cooldown_seconds": self.autopilot_cooldown_seconds
         }
@@ -613,7 +628,7 @@ class OverlayApp:
         def stream_worker():
             """Fetches response chunks from the API and puts them in the queue."""
             response_stream = gemini_client.get_gemini_response_stream(
-                self.api_key, history_for_api, self.current_model.get(), self.current_persona, image_path, active_context
+                self.api_key_var.get(), history_for_api, self.current_model.get(), self.current_persona, image_path, active_context
             )
             for chunk in response_stream:
                 self.chunk_queue.put(chunk)
