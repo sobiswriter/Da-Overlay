@@ -3,15 +3,15 @@ import threading
 import time
 
 class Autopilot:
-    def __init__(self, app_instance):
+    def __init__(self, app_instance, intervals):
         self.app = app_instance
         self.running = False
         self.thread = None
         # NEW: The "reset" signal for our super-sensitive hearing!
         self._reset_event = threading.Event()
         
-        # The sequence of intervals in seconds, as you designed!
-        self.intervals = [120, 100, 160, 200, 300]
+        # The sequence of intervals is now passed in from the main app
+        self.intervals = intervals
         self.current_interval_index = 0
         
         # An Event to allow us to stop the timer gracefully

@@ -1,5 +1,8 @@
 requests
 python-dotenv
 mss
-pynput
-PyQt6
+pywinstyles
+pygments
+keyboard
+pywin32
+psutil

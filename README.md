@@ -1,45 +1,67 @@
-# Cutex Overlay
+# 🌸 Overlay Cutex (Anna)
 
-Cutex Overlay is a desktop application that allows you to capture a region of your screen and ask questions about it to the Gemini AI. It provides a seamless way to get information about anything on your screen.
+**Overlay Cutex** is a premium, glass-morphic AI companion for your Windows desktop. Designed with aesthetics and utility in mind, it provides a transparent overlay to interact with the Gemini AI while you work or play.
 
-## Features
+![Preview](screenshot.png)
 
-*   **Screen Region Capture**: Select any part of your screen to capture.
-*   **AI-Powered Analysis**: Uses the Gemini AI to understand and answer questions about the captured image.
-*   **Chat Interface**: Interact with the AI in a user-friendly chat window.
-*   **Global Hotkey**: Activate the screen capture from anywhere with a configurable hotkey.
+## ✨ Core Features
 
-## Installation
+- **🎨 Glassmorphic UI**: A stunning, transparent interface that blends into your workspace.
+- **👁️ Context-Aware**: Anna can "see" your active window and selected screen regions to provide relevant assistance.
+- **🚀 Autopilot Mode**: An autonomous mode where Anna proactively observes your activity and offers gentle, non-intrusive insights.
+- **🎭 Multi-Persona**: Switch between various personalities including Anna, TARS, Holmes, and more.
+- **⌨️ Global Hotkeys**: Total control at your fingertips without ever leaving your current app.
+- **🌓 Dynamic Themes**: Beautifully crafted Light and Dark modes.
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/cutex-overlay.git
-    cd cutex-overlay
-    ```
+## ⌨️ Hotkeys
 
-2.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+| Action | Hotkey |
+| :--- | :--- |
+| **Show / Hide App** | `Alt + X` |
+| **Focus Chat Input** | `Alt + A` |
+| **Move Window** | `Alt + Numpad (8, 4, 2, 6)` |
+| **Cycle Capture Mode** | `Alt + 0` |
+| **Toggle Context Sharing** | `Alt + 5` |
+| **Toggle Theme** | `Alt + D` |
+| **Increase Opacity** | `Alt + W` |
+| **Decrease Opacity** | `Alt + S` |
 
-3.  **Set up your environment:**
-    Create a `.env` file in the root directory of the project and add your Gemini API key:
-    ```
-    GEMINI_API_KEY=your_gemini_api_key
-    ```
+## 🚀 Getting Started
 
-## Usage
+### Prerequisites
+- Python 3.10+
+- A Gemini API Key from [Google AI Studio](https://aistudio.google.com/)
 
-1.  **Run the application:**
-    ```bash
-    python main.py
-    ```
+### Installation
 
-2.  **Activate the screen capture:**
-    Press the configured hotkey (default is `Ctrl+Shift+X`) to activate the region selector.
+1. **Clone & Navigate**:
+   ```pwsh
+   git clone https://github.com/your-username/overlay-cutex.git
+   cd overlay-cutex
+   ```
 
-3.  **Select a region:**
-    Click and drag to select the area of the screen you want to capture.
+2. **Install Dependencies**:
+   ```pwsh
+   pip install -r requirements.txt
+   ```
 
-4.  **Ask a question:**
-    Type your question in the input box and press Enter. The AI's response will appear in the chat window.
+3. **Configure API Key**:
+   Create a `.env` file in the root:
+   ```env
+   GEMINI_API_KEY=your_key_here
+   ```
+
+4. **Run**:
+   ```pwsh
+   python main.py
+   ```
+
+## 🛠️ Built With
+- **Python** & **Tkinter**
+- **Gemini 2.5 Pro/Flash**
+- **pywinstyles** for Windows effects
+- **mss** for ultra-fast screen capture
+
+---
+
+*Note: Exclusive Fullscreen applications may require "Borderless Fullscreen" or "Windowed" mode to allow the overlay to appear on top.*

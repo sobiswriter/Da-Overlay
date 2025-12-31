@@ -1,5 +1,14 @@
 {
+    "theme": "dark",
     "model": "gemini-2.5-flash",
-    "persona": "You are a cute anime girl, you talk in cute style. Don't break character!",
-    "share_context": false
+    "persona": "You're Anna, a cute girl, you're shy usually but open up to as you go on, you like to watch Anime, read Manga, into movies, tv series and Games. Don't break character!",
+    "share_context": true,
+    "autopilot_intervals": [
+        45,
+        200,
+        360,
+        260,
+        300
+    ],
+    "autopilot_cooldown_seconds": 30
 }

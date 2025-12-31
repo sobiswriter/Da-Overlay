@@ -1,8 +1,9 @@
 # --- utils/gemini_client.py ---
 import requests
 import base64
-import copy # THE CRITICAL FIX IS HERE
+import copy 
 import json
+import re
 
 def get_gemini_response_stream(api_key, conversation_history, model_name="gemini-2.5-flash", persona_text="You are a helpful AI.", image_path=None, active_context=None):
     """
@@ -47,13 +48,16 @@ def get_gemini_response_stream(api_key, conversation_history, model_name="gemini
         # If it is, we create a special set of instructions for this one action!
         full_persona = (
             f"Your base persona is: '{persona_text}'.\n\n"
-            "INSTRUCTIONS: Your primary focus is the user's conversation history, continue the conversation. If there is no history then start a new conversation, use the 'Active Window Context' and screenshot to understand what the user is doing and proactively mention it to make the conversation more relevant. Don't mention about the 'Active Window itself' or that you're an AI model, make your responses sound as natural and consice unless user demands."
+            "INSTRUCTIONS: Your primary focus is the user's conversation history, continue the conversation. If there is no history then start a new conversation, use the 'Active Window Context' and screenshot to understand what the user is doing and proactively mention it to make the conversation more relevant. Don't mention about the 'Active Window itself' or that you're an AI model, make your responses sound as natural and consice unless user demands.\n"
+            f"* Active Window Context: {active_context}"
         )
     else:
         # This is your existing, excellent prompt for normal conversation!
-        full_persona = persona_text + "\n\n---"
-        full_persona += "\nINSTRUCTIONS: Your primary focus is the user's question and conversation history. Use the 'Active Window Context' to understand what the user is doing and proactively mention it to make the conversation more relevant, especially if the user's message is a simple greeting or a question without much context. Don't mention about the 'Active Window itself' though, make your responses sound natural. Don't mention you're an AI model and give structed responses. Keep your responses relevant to the user's needs."
-        full_persona += f"\n* Active Window Context: {active_context}"
+        full_persona = (
+            f"{persona_text}\n\n---\n"
+            "INSTRUCTIONS: Your primary focus is the user's question and conversation history. Use the 'Active Window Context' to understand what the user is doing and proactively mention it to make the conversation more relevant, especially if the user's message is a simple greeting or a question without much context. Don't mention about the 'Active Window itself' though, make your responses sound natural. Don't mention you're an AI model and give structed responses. Keep your responses relevant to the user's needs.\n"
+            f"* Active Window Context: {active_context}"
+        )
 
 
     payload = {
@@ -63,20 +67,15 @@ def get_gemini_response_stream(api_key, conversation_history, model_name="gemini
         },
         "generationConfig": {
             "maxOutputTokens": 1024,
-            "temperature": 0.8 # A little more creative for Autopilot!
+            "temperature": 1.0 # A little more creative for Autopilot!
         }
     }
 
     # The rest of the function is unchanged
-    # In utils/gemini_client.py, at the end of the get_gemini_response_stream function
-
-    # In utils/gemini_client.py, at the end of the get_gemini_response_stream function
-
     try:
         with requests.post(url, headers=headers, json=payload, timeout=90, stream=True) as response:
             response.raise_for_status()
             
-            # --- THE DEFINITIVE FIX TO REMOVE "[THINKING]" ---
             full_response_text = ""
             for chunk in response.iter_lines():
                 if chunk and chunk.decode('utf-8').startswith('data: '):
@@ -84,28 +83,20 @@ def get_gemini_response_stream(api_key, conversation_history, model_name="gemini
                         data_chunk = json.loads(chunk.decode('utf-8')[6:])
                         if 'candidates' in data_chunk:
                             text_chunk = data_chunk['candidates'][0]['content']['parts'][0]['text']
-                            full_response_text += text_chunk
+                            yield text_chunk
                     except (json.JSONDecodeError, KeyError, IndexError):
-                        continue # Ignore malformed chunks
-            
-            # Now that we have the full response, we filter out the thinking part.
-            # We look for various patterns and split the text to take what's after it.
-            if any(tag in full_response_text.lower() for tag in ['(thinking)', '[thinking]', '(thought)', '[thought]', 'thinking', 'thought', 'thinking process', 'thought process', 'processing', 'thinking...', '(thought process)', '[thought process]', 'the user said']):
-                # Find the first closing bracket or parenthesis
-                split_char = ']' if ']' in full_response_text else ')'
-                parts = full_response_text.split(split_char, 1)
-                
-                if len(parts) > 1:
-                    # The actual response is the second part
-                    final_text = parts[1].lstrip()
-                    yield final_text
-                else:
-                    yield full_response_text # Fallback
-            else:
-                # If no thinking block, yield the whole response
-                yield full_response_text
+                        # This can happen with malformed SSE chunks, just skip them
+                        print(f"Warning: Skipping malformed data chunk from API stream.")
+                        continue
 
+    except requests.exceptions.HTTPError as e:
+        yield f"Error: API returned an HTTP error: {e.response.status_code} {e.response.reason}. Check your API key and model name."
+    except requests.exceptions.ConnectionError:
+        yield "Error: Could not connect to the API. Please check your internet connection."
+    except requests.exceptions.Timeout:
+        yield "Error: The request to the API timed out."
     except requests.exceptions.RequestException as e:
-        yield f"API Request Error: {e}"
+        yield f"Error: An unexpected API request error occurred: {e}"
     except Exception as e:
-        yield f"An unexpected error occurred: {e}"
+        # This is a catch-all for any other unexpected errors.
+        yield f"Error: An unexpected error occurred in the Gemini client: {e}"
