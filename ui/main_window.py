@@ -12,7 +12,7 @@ import sys
 import pywinstyles
 import copy
 import queue
-from utils.theme_manager import THEMES
+from utils.theme_manager import ThemeProvider
 
 
 # Note: We are no longer importing SettingsWindow
@@ -22,6 +22,8 @@ from ui.region_selector import RegionSelector
 from ui.message_bubble import MessageBubble
 from utils import gemini_client
 from utils.autopilot import Autopilot
+from utils.theme_manager import ThemeProvider
+from ui.components.modern_widgets import ModernButton, ModernEntry
 
 DEFAULT_PERSONA = "You are TARS from the movie Interstellar. You are a former U.S. Marine Corps tactical robot. Your personality is witty, sarcastic, and humorous. You were programmed this way to be a better companion. Keep your answers brief, well-formatted, and to the point. Use Markdown for clarity."
 
@@ -37,7 +39,7 @@ PERSONA_PRESETS = {
 class OverlayApp:
     def __init__(self, root):
         self.root = root; self.api_key = os.getenv("GEMINI_API_KEY"); self.is_visible = True
-        self.conversation_history = []; self.capture_mode_var = tk.StringVar(value="Capture Region")
+        self.conversation_history = []; self.capture_mode_var = tk.StringVar(value="No Capture")
         
         # --- Settings Attributes ---
         # Using tk.StringVar for model so the dropdown updates automatically
@@ -45,10 +47,9 @@ class OverlayApp:
         self.api_key_var = tk.StringVar() # NEW: For in-app API key management
         self.current_persona = ""
         self.settings_visible = False # State for the collapsible panel
-        self.show_pinned_only = tk.BooleanVar(value=False)
         self.share_context = tk.BooleanVar(value=True) # On by default
         self.thinking_animation_id = None # To control the "thinking" animation
-        self.autopilot_enabled = tk.BooleanVar(value=True) # On by default
+        self.autopilot_enabled = tk.BooleanVar(value=False) # Off by default
 
         # --- NEW: Autopilot intervals are now instance attributes ---
         self.autopilot_intervals = [120, 200, 360, 260, 300] # Default values
@@ -58,34 +59,34 @@ class OverlayApp:
         self.autopilot = Autopilot(self, intervals=self.autopilot_intervals) # Create an instance of our engine
         self.last_user_interaction_time = time.time()
         self.current_theme = tk.StringVar(value="dark") # 'dark' or 'light'
-
-        # --- NEW: Dark Theme Color Palette ---
-        self.C_BG = "#1F2937"           # Main background (gray-800)
-        self.C_WIDGET_BG = "#374151"    # Widget/surface background (gray-700)
-        self.C_INPUT_BG = "#4B5563"     # Input field background (gray-600)
-        self.C_TEXT_PRIMARY = "#F9FAFB" # Primary text (gray-50)
-        self.C_TEXT_SECONDARY = "#9CA3AF" # Muted text (gray-400)
-        self.C_ACCENT = "#6B98F3"       # Accent/highlight (blue-500)
-        self.C_ACCENT_HOVER = "#A8CAF4" # Lighter accent for hover (blue-400)
-        self.C_BUTTON_HOVER = "#4B5563" # Hover for non-accent buttons (gray-600)
+        self.theme_provider = ThemeProvider(self.current_theme.get())
+        
+        # Apply palette from theme provider
+        self._apply_palette()
 
         # --- THE DEFINITIVE GLASS UI FOUNDATION ---
-        self.font_family = "Segoe UI";
-
+        self.font_family = "Segoe UI"
         self.TRANSPARENT_COLOR = "#abcdef" # A magic, invisible color
         self.BG_COLOR = self.C_BG # This will be updated by the theme manager
 
         # Make the window borderless and invisible
         self.root.overrideredirect(True)
-        self.root.geometry("800x650")
+        # Setting default size as per user preference
+        self.root.geometry("1100x700")
         self.root.config(bg=self.TRANSPARENT_COLOR)
         self.root.wm_attributes("-transparentcolor", self.TRANSPARENT_COLOR)
         self.root.wm_attributes("-topmost", True)
 
         # The container that holds all our VISIBLE widgets
-        # We will control ITS background color with the theme
         self.container = tk.Frame(root, bg=self.BG_COLOR, padx=10, pady=10)
         self.container.pack(fill="both", expand=True)
+        
+        # Apply modern rounding to the main container
+        try:
+            import pywinstyles
+            pywinstyles.apply_style(self.container, "rounded")
+            pywinstyles.apply_style(root, "mica" if self.current_theme.get() == "dark" else "normal")
+        except: pass
 
         # Create the opacity variable and set the initial transparency ON THE CONTAINER
         self.opacity_var = tk.DoubleVar(value=0.85)
@@ -93,15 +94,15 @@ class OverlayApp:
         # The initial call to _on_opacity_change will be removed later as it's not needed here.
 
         # --- Initialize the main app logic ---
-        self.container.grid_columnconfigure(0, weight=1)
-        # The chat area is now at row 3, allowing the settings panel to be at row 1
-        self.container.grid_rowconfigure(3, weight=1) 
+        self.container.grid_columnconfigure(1, weight=1) # Main content area
+        self.container.grid_rowconfigure(2, weight=1) # The CHAT area needs the weight!
 
         # --- Widget Creation ---
+        self.create_sidebar() # NEW: Professional Sidebar
         self.create_control_bar_widgets()
-        self.create_settings_panel() # Create the hidden settings panel
         self.create_magic_prompts_bar()
         self.create_response_area_widgets()
+        self.create_settings_panel() # Create the hidden settings panel (moved to end for Z-order)
 
         self._load_settings() # Load settings (including theme) on startup
         self._apply_theme() # Apply the loaded theme
@@ -113,12 +114,6 @@ class OverlayApp:
         # --- Drag Logic Binding ---
         self.control_bar.bind("<ButtonPress-1>", self._on_press)
         self.control_bar.bind("<B1-Motion>", self._on_drag)
-        for child in self.control_bar.winfo_children():
-            if isinstance(child, tk.Frame):
-                for sub_child in child.winfo_children():
-                    if not isinstance(sub_child, (tk.Entry, ttk.Combobox, tk.Button, ttk.Checkbutton)):
-                        sub_child.bind("<ButtonPress-1>", self._on_press)
-                        sub_child.bind("<B1-Motion>", self._on_drag)
 
         # --- NEW: Resize Logic ---
         self.resize_grip = tk.Label(self.container, text="◢", bg=self.C_WIDGET_BG, fg=self.C_TEXT_SECONDARY, cursor="bottom_right_corner")
@@ -128,6 +123,61 @@ class OverlayApp:
 
         # --- NEW: Graceful Exit --- 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _apply_palette(self):
+        """Maps ThemeProvider palette to instance attributes for backward compatibility."""
+        p = self.theme_provider.get_palette()
+        self.C_BG = p["C_BG"]
+        self.C_WIDGET_BG = p["C_CARD"]
+        self.C_INPUT_BG = p["C_INPUT"]
+        self.C_TEXT_PRIMARY = p["C_TEXT_PRIMARY"]
+        self.C_TEXT_SECONDARY = p["C_TEXT_SECONDARY"]
+        self.C_ACCENT = p["C_ACCENT"]
+        self.C_ACCENT_HOVER = p["C_ACCENT_HOVER"]
+        self.C_BORDER = p["C_BORDER"]
+        self.C_SIDEBAR = p["C_SIDEBAR"]
+        self.C_SUCCESS = p["C_SUCCESS"]
+        self.C_ERROR = p["C_ERROR"]
+        self.C_BUTTON_HOVER = p["C_BUTTON_HOVER"]
+        self.BG_COLOR = self.C_BG
+
+    def create_sidebar(self):
+        """Creates a professional vertical navigation sidebar."""
+        self.sidebar = tk.Frame(self.container, bg=self.theme_provider.get_palette()["C_SIDEBAR"], width=60)
+        self.sidebar.grid(row=0, column=0, rowspan=4, sticky="ns", padx=(0, 10))
+        self.sidebar.grid_propagate(False)
+
+        # Sidebar Icons (Placeholder text for now, can be replaced with actual icons)
+        actions = [
+            ("⚙️", self.toggle_settings_panel, "Settings"),
+            ("📷", self.cycle_capture_mode, "Capture"),
+            ("🤖", self._toggle_autopilot_ui, "Autopilot"),
+            ("🔗", self.toggle_context_sharing, "Share Context"),
+            ("💾", self.save_chat, "Save Chat"),
+            ("📂", self.load_chat, "Load Chat"),
+            ("🧹", self.clear_chat, "Clear")
+        ]
+
+        for i, (icon, cmd, tooltip) in enumerate(actions):
+            btn = tk.Button(self.sidebar, text=icon, font=(self.font_family, 14),
+                            command=cmd, bg=self.sidebar["bg"], fg=self.C_TEXT_SECONDARY,
+                            activebackground=self.C_ACCENT, activeforeground="white",
+                            bd=0, relief="flat", padx=10, pady=15)
+            btn.pack(side="top", fill="x")
+            try:
+                import pywinstyles
+                pywinstyles.apply_style(btn, "rounded")
+            except: pass
+            # Hover effect
+            btn.bind("<Enter>", lambda e, b=btn: b.config(fg=self.C_ACCENT))
+            btn.bind("<Leave>", lambda e, b=btn: b.config(fg=self.C_TEXT_SECONDARY))
+
+    def _toggle_autopilot_ui(self):
+        self.autopilot_enabled.set(not self.autopilot_enabled.get())
+        self._apply_settings_changes() # Immediate effect
+        self._save_settings() # Persist
+        status = "Enabled" if self.autopilot_enabled.get() else "Disabled"
+        self.show_feedback(f"Autopilot {status}")
     
     def _on_resize_press(self, event):
         self._resize_data = {
@@ -198,8 +248,18 @@ class OverlayApp:
         self.style.configure('Vertical.TScrollbar', gripcount=0, background=self.C_WIDGET_BG, darkcolor=self.C_WIDGET_BG, lightcolor=self.C_WIDGET_BG, troughcolor=self.C_BG, bordercolor=self.C_BG, arrowcolor=self.C_TEXT_PRIMARY)
         self.style.map('Vertical.TScrollbar', background=[('active', self.C_BUTTON_HOVER)])
 
+        # Configure Entry
+        self.style.configure('TEntry', 
+                             fieldbackground=self.C_INPUT_BG,
+                             background=self.C_INPUT_BG,
+                             foreground=self.C_TEXT_PRIMARY,
+                             insertcolor=self.C_TEXT_PRIMARY,
+                             bordercolor=self.C_BORDER,
+                             lightcolor=self.C_BORDER,
+                             darkcolor=self.C_BORDER)
+
         # Configure Main Action Button
-        self.style.configure('TButton', background=self.C_ACCENT, foreground=self.C_TEXT_PRIMARY, font=(self.font_family, 10, 'bold'), relief='flat', padding=6, borderwidth=0)
+        self.style.configure('TButton', background=self.C_ACCENT, foreground="white", font=(self.font_family, 10, 'bold'), relief='flat', padding=6, borderwidth=0)
         self.style.map('TButton', background=[('active', self.C_ACCENT_HOVER)])
     
     def _on_opacity_change(self, value):
@@ -207,115 +267,182 @@ class OverlayApp:
         self.root.attributes("-alpha", float(value))
 
     def create_control_bar_widgets(self):
+        """The Smart Top Bar containing the main prompt and branding."""
         self.control_bar = tk.Frame(self.container, bg=self.BG_COLOR)
-        self.control_bar.grid(row=0, column=0, sticky="ew", pady=(0, 5))
-        self.control_bar.grid_columnconfigure(2, weight=1)
+        self.control_bar.grid(row=0, column=1, sticky="ew", pady=(0, 10))
+        self.control_bar.grid_columnconfigure(0, weight=1)
 
-        left_frame = tk.Frame(self.control_bar, bg=self.BG_COLOR)
-        left_frame.grid(row=0, column=0, sticky="w")
-        capture_options = ["No Capture", "Capture Region", "Capture Fullscreen"]
-        capture_dropdown = ttk.Combobox(left_frame, textvariable=self.capture_mode_var, values=capture_options, state="readonly", width=18)
-        capture_dropdown.set("No Capture"); capture_dropdown.pack(side="left")
-        pinned_toggle = ttk.Checkbutton(left_frame, text="★ Pinned", variable=self.show_pinned_only, command=self.rebuild_chat_display)
-        pinned_toggle.pack(side="left", padx=10)
-
-        # Use the new PlaceholderEntry widget
-        self.ai_prompt_entry = PlaceholderEntry(self.control_bar, 
-                                                placeholder="Ask AI, or select a prompt...",
-                                                color=self.C_TEXT_SECONDARY,
-                                                font=(self.font_family, 12),
-                                                relief="flat", bd=5, bg=self.C_INPUT_BG,
-                                                fg=self.C_TEXT_PRIMARY, insertbackground=self.C_TEXT_PRIMARY)
-        self.ai_prompt_entry.grid(row=0, column=2, sticky="ew", ipady=6, padx=10)
-        self.ai_prompt_entry.bind("<Return>", self.run_chat_interaction)
+        # Smart Prompt Container
+        self.prompt_container = tk.Frame(self.control_bar, bg=self.C_INPUT_BG, padx=5, pady=2,
+                                         highlightthickness=1, highlightbackground=self.C_BORDER)
+        self.prompt_container.grid(row=0, column=0, sticky="ew")
+        try:
+            import pywinstyles
+            pywinstyles.apply_style(self.prompt_container, "rounded")
+        except: pass
         
-        right_frame = tk.Frame(self.control_bar, bg=self.BG_COLOR)
-        right_frame.grid(row=0, column=3, sticky="e")
+        self.user_input = tk.Entry(self.prompt_container, font=(self.font_family, 12),
+                                  bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY,
+                                  insertbackground=self.C_TEXT_PRIMARY, bd=0, relief="flat")
+        self.user_input.pack(side="left", fill="x", expand=True, padx=10, pady=8)
+        self.user_input.bind("<Return>", self.on_user_submit)
         
-        # The settings button now toggles the panel
-        self.settings_button = tk.Button(right_frame, text="⚙️", command=self.toggle_settings_panel, relief='flat', font=(self.font_family, 14), cursor="hand2", bg=self.C_BG, fg=self.C_TEXT_SECONDARY, activebackground=self.C_BUTTON_HOVER, activeforeground=self.C_TEXT_PRIMARY, bd=0)
-        self.settings_button.pack(side="left", padx=5)
+        # Branding / Title in the bar
+        self.branding_label = tk.Label(self.control_bar, text="Overlay Cutex", font=(self.font_family, 10, "bold"),
+                                      bg=self.BG_COLOR, fg=self.C_ACCENT)
+        self.branding_label.grid(row=0, column=1, padx=10)
+    def create_magic_prompts_bar(self):
+        """Minimal horizontal bar for quick actions or status."""
+        self.magic_bar = tk.Frame(self.container, bg=self.BG_COLOR)
+        self.magic_bar.grid(row=1, column=1, sticky="w", pady=(0, 10), padx=5)
         
-        # PRESERVED: Your Load, Save, and Clear buttons
-        self.load_button = tk.Button(right_frame, text="Load", command=self.load_chat, relief='flat', font=(self.font_family, 10), cursor="hand2", bg=self.C_BG, fg=self.C_TEXT_SECONDARY, activebackground=self.C_BUTTON_HOVER, activeforeground=self.C_TEXT_PRIMARY, bd=0); self.load_button.pack(side="left", padx=5)
-        self.save_button = tk.Button(right_frame, text="Save", command=self.save_chat, relief='flat', font=(self.font_family, 10), cursor="hand2", bg=self.C_BG, fg=self.C_TEXT_SECONDARY, activebackground=self.C_BUTTON_HOVER, activeforeground=self.C_TEXT_PRIMARY, bd=0); self.save_button.pack(side="left", padx=5)
-        self.clear_button = tk.Button(right_frame, text="Clear", command=self.clear_chat, relief='flat', font=(self.font_family, 10), cursor="hand2", bg=self.C_BG, fg=self.C_TEXT_SECONDARY, activebackground=self.C_BUTTON_HOVER, activeforeground=self.C_TEXT_PRIMARY, bd=0); self.clear_button.pack(side="left", padx=5)
+        # Capture Mode Switcher (Sleeker design)
+        self.mode_btn = tk.Button(self.magic_bar, textvariable=self.capture_mode_var,
+                                  font=(self.font_family, 9), bg=self.C_ACCENT, fg="white",
+                                  command=self.cycle_capture_mode, relief="flat", padx=15, pady=4,
+                                  activebackground=self.C_ACCENT_HOVER, activeforeground="white")
+        self.mode_btn.pack(side="left")
+        
+        # Add a subtle separator or status text here if needed
+        self.status_label = tk.Label(self.magic_bar, text="Ready", font=(self.font_family, 9),
+                                    bg=self.BG_COLOR, fg=self.C_TEXT_SECONDARY)
+        self.status_label.pack(side="left", padx=15)
 
     def create_settings_panel(self):
-        self.settings_frame = tk.Frame(self.container, bg=self.C_WIDGET_BG, bd=1, relief="solid", borderwidth=0)
-        self.settings_frame.grid_columnconfigure(1, weight=1)
+        """Redesigning the settings panel as a professional two-column dashboard."""
+        self.settings_frame = tk.Frame(self.container, bg=self.C_SIDEBAR, 
+                                      highlightthickness=1, highlightbackground=self.C_BORDER)
+        # Wider but shorter for a dashboard feel
+        self.settings_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.9, relheight=0.85)
+        self.settings_frame.place_forget()
 
-        tk.Label(self.settings_frame, text="Model:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=0, column=0, sticky="w", padx=10, pady=10)
-        models = ["gemini-2.5-flash-lite-preview-06-17", "gemini-2.0-flash-preview-image-generation", "gemini-2.5-flash", "gemini-2.5-pro"]
-        model_dropdown = ttk.Combobox(self.settings_frame, textvariable=self.current_model, values=models, state="readonly")
-        model_dropdown = ttk.Combobox(self.settings_frame, textvariable=self.current_model, values=models, state="readonly")
-        model_dropdown.grid(row=0, column=1, sticky="ew", padx=10, pady=10)
+        # Canvas for scrollback if needed, but designed for 1-page view
+        self.settings_canvas = tk.Canvas(self.settings_frame, bg=self.C_SIDEBAR, highlightthickness=0, bd=0)
+        self.settings_scrollbar = ttk.Scrollbar(self.settings_frame, orient="vertical", command=self.settings_canvas.yview)
+        self.settings_inner = tk.Frame(self.settings_canvas, bg=self.C_SIDEBAR, padx=30, pady=25)
+        
+        self.settings_inner.bind("<Configure>", lambda e: self.settings_canvas.configure(scrollregion=self.settings_canvas.bbox("all")))
+        self.settings_canvas_window = self.settings_canvas.create_window((0, 0), window=self.settings_inner, anchor="nw") 
+        self.settings_canvas.configure(yscrollcommand=self.settings_scrollbar.set)
+        self.settings_canvas.bind("<Configure>", self._on_settings_canvas_configure)
+        
+        self.settings_canvas.pack(side="left", fill="both", expand=True)
+        self.settings_scrollbar.pack(side="right", fill="y")
+        
+        try:
+            import pywinstyles
+            pywinstyles.apply_style(self.settings_frame, "rounded")
+        except: pass
 
-        # --- NEW: API Key Field ---
-        tk.Label(self.settings_frame, text="Gemini API Key:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=1, column=0, sticky="w", padx=10, pady=5)
-        self.api_key_entry = ttk.Entry(self.settings_frame, textvariable=self.api_key_var, show="*")
-        self.api_key_entry.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
+        # Title
+        tk.Label(self.settings_inner, text="CONTROL DASHBOARD", font=(self.font_family, 18, "bold"), 
+                 bg=self.C_SIDEBAR, fg=self.C_ACCENT).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 20))
 
-        # --- NEW: Persona Preset Buttons ---
-        self.preset_frame = tk.Frame(self.settings_frame, bg=self.C_WIDGET_BG)
-        self.preset_frame.grid(row=2, column=1, sticky="w", padx=10)
+        # --- LEFT COLUMN: AI CONFIG ---
+        left_col = tk.Frame(self.settings_inner, bg=self.C_SIDEBAR)
+        left_col.grid(row=1, column=0, sticky="nsew", padx=(0, 40)) # More padding for breathing room
 
-        for key in PERSONA_PRESETS:
-            # Create a button for each key in our dictionary
-            btn = tk.Button(self.preset_frame, text=key, font=(self.font_family, 9),
+        tk.Label(left_col, text="AI CORE", font=(self.font_family, 11, "bold"), bg=self.C_SIDEBAR, fg=self.C_ACCENT).pack(anchor="w", pady=(0, 10))
+
+        tk.Label(left_col, text="Gemini Model:", font=(self.font_family, 10, 'bold'), 
+                 bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w")
+        models = ["gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash-preview", "gemini-2.5-flash-lite"]
+        self.model_dropdown = ttk.Combobox(left_col, textvariable=self.current_model, values=models, state="readonly")
+        self.model_dropdown.pack(fill="x", pady=(5, 10))
+
+        tk.Label(left_col, text="API Key:", font=(self.font_family, 10, 'bold'), 
+                 bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w")
+        self.api_key_entry = ttk.Entry(left_col, textvariable=self.api_key_var, show="*")
+        self.api_key_entry.pack(fill="x", pady=(5, 15))
+
+        tk.Label(left_col, text="Persona Presets:", font=(self.font_family, 10, 'bold'), 
+                 bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w")
+        self.preset_frame = tk.Frame(left_col, bg=self.C_SIDEBAR)
+        self.preset_frame.pack(fill="x", pady=5)
+        for i, key in enumerate(PERSONA_PRESETS):
+            btn = tk.Button(self.preset_frame, text=key, font=(self.font_family, 8),
                             command=lambda p=key: self._set_persona(p), 
-                            relief="solid", bd=1, padx=4, pady=1, bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, activebackground=self.C_BUTTON_HOVER, borderwidth=0)
-            btn.pack(side="left", padx=3)
+                            bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, 
+                            activebackground=self.C_ACCENT, activeforeground="white",
+                            relief="flat", bd=0, padx=8, pady=4)
+            btn.grid(row=i//3, column=i%3, padx=2, pady=2, sticky="ew")
+            try: pywinstyles.apply_style(btn, "rounded")
+            except: pass
 
-        tk.Label(self.settings_frame, text="Persona:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=3, column=0, sticky="nw", padx=10, pady=5)
-        self.persona_text = tk.Text(self.settings_frame, height=5, font=(self.font_family, 11), relief="solid", bd=0, wrap="word", bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, insertbackground=self.C_TEXT_PRIMARY)
-        self.persona_text.grid(row=3, column=1, sticky="ew", padx=10, pady=5)
+        tk.Label(left_col, text="Custom Persona Instructions:", font=(self.font_family, 10, 'bold'), 
+                 bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w", pady=(10, 0))
+        self.persona_text = tk.Text(left_col, height=3, font=(self.font_family, 9), 
+                                   relief="flat", bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, 
+                                   insertbackground=self.C_TEXT_PRIMARY, padx=10, pady=10)
+        self.persona_text.pack(fill="x", pady=5)
 
-        tk.Label(self.settings_frame, text="Opacity:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=4, column=0, sticky="w", padx=10, pady=5)
-        self.opacity_slider = ttk.Scale(self.settings_frame, from_=0.2, to=1.0, orient="horizontal", variable=self.opacity_var, command=self._on_opacity_change)
-        self.opacity_slider.grid(row=4, column=1, sticky="ew", padx=10, pady=5)
+        # --- RIGHT COLUMN: APP & SHORTCUTS ---
+        right_col = tk.Frame(self.settings_inner, bg=self.C_SIDEBAR)
+        right_col.grid(row=1, column=1, sticky="nsew")
 
-        # --- NEW: Theme Toggle ---
-        tk.Label(self.settings_frame, text="Theme:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=5, column=0, sticky="w", padx=10, pady=5)
-        self.theme_button = tk.Button(self.settings_frame, text="☀️ Light", command=self._toggle_theme, relief="solid", bd=1, padx=4, pady=1, bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, activebackground=self.C_BUTTON_HOVER, borderwidth=0)
-        self.theme_button.grid(row=5, column=1, sticky="w", padx=10, pady=5)
+        # Shortcuts Guide (Compact)
+        tk.Label(right_col, text="QUICK SHORTCUTS", font=(self.font_family, 11, "bold"), bg=self.C_SIDEBAR, fg=self.C_ACCENT).pack(anchor="w", pady=(0, 10))
+        shortcuts_list = [
+            ("Alt + X", "Show/Hide UI"), ("Alt + A", "Focus Chat"),
+            ("Alt + 0", "Capture Mode"), ("Alt + D", "Themes"),
+            ("Alt + 5", "Context Sync"), ("Alt + W/S", "Opacity")
+        ]
+        sc_frame = tk.Frame(right_col, bg=self.C_SIDEBAR)
+        sc_frame.pack(fill="x", pady=(0, 15))
+        for i, (k, d) in enumerate(shortcuts_list):
+            f = tk.Frame(sc_frame, bg=self.C_SIDEBAR)
+            f.pack(fill="x", pady=1)
+            tk.Label(f, text=k, font=(self.font_family, 9, "bold"), bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY, width=10, anchor="w").pack(side="left")
+            tk.Label(f, text=d, font=(self.font_family, 9), bg=self.C_SIDEBAR, fg=self.C_TEXT_SECONDARY).pack(side="left")
 
-        # --- NEW: Autopilot Intervals Entry ---
-        tk.Label(self.settings_frame, text="Autopilot Intervals:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=6, column=0, sticky="w", padx=10, pady=5)
-        self.autopilot_intervals_entry = ttk.Entry(self.settings_frame, textvariable=self.autopilot_intervals_var)
-        self.autopilot_intervals_entry.grid(row=6, column=1, sticky="ew", padx=10, pady=5)
-        tk.Label(self.settings_frame, text="(comma-separated seconds)", font=(self.font_family, 9), bg=self.C_WIDGET_BG, fg=self.C_TEXT_SECONDARY).grid(row=7, column=1, sticky="w", padx=10)
+        # Autopilot Section
+        tk.Label(right_col, text="AUTOPILOT ENGINE", font=(self.font_family, 10, "bold"), bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w")
+        auto_grid = tk.Frame(right_col, bg=self.C_SIDEBAR)
+        auto_grid.pack(fill="x", pady=5)
+        tk.Label(auto_grid, text="Intervals (s):", bg=self.C_SIDEBAR, fg=self.C_TEXT_SECONDARY, font=(self.font_family, 9)).grid(row=0, column=0, sticky="w")
+        self.autopilot_intervals_entry = ttk.Entry(auto_grid, textvariable=self.autopilot_intervals_var, width=15)
+        self.autopilot_intervals_entry.grid(row=0, column=1, padx=5, pady=2)
+        tk.Label(auto_grid, text="Cooldown:", bg=self.C_SIDEBAR, fg=self.C_TEXT_SECONDARY, font=(self.font_family, 9)).grid(row=1, column=0, sticky="w")
+        self.autopilot_cooldown_entry = ttk.Entry(auto_grid, textvariable=self.autopilot_cooldown_var, width=15)
+        self.autopilot_cooldown_entry.grid(row=1, column=1, padx=5, pady=2)
 
-        # --- NEW: Autopilot Cooldown Entry ---
-        tk.Label(self.settings_frame, text="Autopilot Cooldown:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).grid(row=8, column=0, sticky="w", padx=10, pady=5)
-        self.autopilot_cooldown_entry = ttk.Entry(self.settings_frame, textvariable=self.autopilot_cooldown_var, width=10)
-        self.autopilot_cooldown_entry.grid(row=8, column=1, sticky="w", padx=10, pady=5)
+        # Appearance & Misc
+        tk.Label(right_col, text="VISUALS", font=(self.font_family, 10, "bold"), bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w", pady=(15, 5))
+        self.opacity_slider = ttk.Scale(right_col, from_=0.2, to=1.0, orient="horizontal", variable=self.opacity_var, command=self._on_opacity_change)
+        self.opacity_slider.pack(fill="x", pady=5)
+        
+        misc_frame = tk.Frame(right_col, bg=self.C_SIDEBAR)
+        misc_frame.pack(fill="x", pady=10)
+        self.theme_button = tk.Button(misc_frame, text="Switch Theme", command=self._toggle_theme, 
+                                     bg=self.C_ACCENT, fg="white", font=(self.font_family, 9, "bold"),
+                                     relief="flat", padx=15, pady=6)
+        self.theme_button.pack(side="left")
+        try: pywinstyles.apply_style(self.theme_button, "rounded")
+        except: pass
+        
+        self.share_ctx_check = tk.Checkbutton(misc_frame, text="Sync Context", variable=self.share_context,
+                                             bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY, selectcolor=self.C_SIDEBAR,
+                                             activebackground=self.C_SIDEBAR, activeforeground=self.C_ACCENT,
+                                             font=(self.font_family, 9))
+        self.share_ctx_check.pack(side="left", padx=15)
 
-        # --- NEW: Tips & Hotkeys Section ---
-        tips_frame = tk.Frame(self.settings_frame, bg=self.C_WIDGET_BG)
-        tips_frame.grid(row=9, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 0))
-
-        tk.Label(tips_frame, text="Tips & Hotkeys:", font=(self.font_family, 11, 'bold'), bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY).pack(anchor="w")
-
-        tips_text = (
-            "• Move Window: Alt + Numpad (8, 4, 2, 6)\n"
-            "• Show / Hide Window: Alt + X\n"
-            "• Focus Chat Input: Alt + A\n"
-            "• Cycle Capture Mode: Alt + 0\n"
-            "• Toggle Context Sharing: Alt + 5\n"
-            "• Toggle Theme: Alt + D\n"
-            "• Opacity: Alt + W (Increase) / Alt + S (Decrease)"
-        )
-
-        tk.Label(tips_frame, text=tips_text, font=(self.font_family, 10), justify="left", bg=self.C_WIDGET_BG, fg=self.C_TEXT_SECONDARY).pack(anchor="w", pady=5)
-        save_button = ttk.Button(self.settings_frame, text="Save Settings", command=self.update_settings)
-        save_button.grid(row=10, column=1, sticky="e", padx=10, pady=10)
+        # Save/Close Actions
+        btn_frame = tk.Frame(self.settings_inner, bg=self.C_SIDEBAR)
+        btn_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(20, 0))
+        
+        ttk.Button(btn_frame, text="SAVE CONFIGURATION", command=self.update_settings).pack(side="right", padx=10)
+        close_btn = tk.Button(btn_frame, text="CLOSE", command=self.toggle_settings_panel, bg=self.C_INPUT_BG, fg=self.C_TEXT_SECONDARY, 
+                  relief="flat", bd=0, padx=20, pady=8)
+        close_btn.pack(side="right")
+        try: pywinstyles.apply_style(close_btn, "rounded")
+        except: pass
 
     def toggle_settings_panel(self):
         if self.settings_visible:
-            self.settings_frame.grid_remove()
+            self.settings_frame.place_forget() # Use place_forget for place() managed widgets
         else:
-            self.settings_frame.grid(row=1, column=0, sticky="ew", pady=10, padx=5)
+            self.settings_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.8, relheight=0.8) # Use place()
+            self.settings_frame.lift() # Ensure it stays on top
         self.settings_visible = not self.settings_visible
 
     def update_settings(self):
@@ -360,7 +487,7 @@ class OverlayApp:
             with open("settings.json", 'r') as f:
                 settings = json.load(f)
                 self.current_theme.set(settings.get("theme", "dark"))
-                self.current_model.set(settings.get("model", "gemini-2.5-flash-latest"))
+                self.current_model.set(settings.get("model", "models/gemini-flash-latest"))
                 self.current_persona = settings.get("persona", tars_persona)
                 self.share_context.set(settings.get("share_context", True))
                 self.api_key_var.set(settings.get("api_key", ""))
@@ -384,7 +511,7 @@ class OverlayApp:
 
         except (FileNotFoundError, json.JSONDecodeError):
             self.current_theme.set("dark")
-            self.current_model.set("gemini-2.5-flash-latest")
+            self.current_model.set("models/gemini-flash-lite-latest")
             self.current_persona = tars_persona
             self.share_context.set(True)
             self.autopilot_intervals = default_intervals
@@ -515,97 +642,77 @@ class OverlayApp:
         self.feedback_timer_id = self.root.after(2000, self._clear_feedback_bubble)
     #prompt focus
     def focus_prompt_entry(self):
-        """Forces focus on the chat input text box."""
-        self.ai_prompt_entry.focus_set()
+        """Forces focus on the main Smart Bar input."""
+        self.user_input.focus_set()
     # PRESERVED: Your clear_chat method
     def clear_chat(self, feedback=True):
         self.conversation_history = [];
         for widget in self.chat_frame.winfo_children(): widget.destroy()
         if feedback: self.show_feedback("Chat cleared!")
 
-    # PRESERVED: Your rebuild_chat_display method
-    def rebuild_chat_display(self):
-        for widget in self.chat_frame.winfo_children(): widget.destroy()
-        history_to_display = self.conversation_history
-        if self.show_pinned_only.get():
-            pinned_history = []
-            for i, msg in enumerate(self.conversation_history):
-                if msg.get('pinned', False):
-                    if i > 0 and self.conversation_history[i-1].get('role') == 'user':
-                        if not pinned_history or pinned_history[-1] != self.conversation_history[i-1]: pinned_history.append(self.conversation_history[i-1])
-                    pinned_history.append(msg)
-            history_to_display = pinned_history
-        for message_data in history_to_display:
-            bubble = self.show_message(message_data, is_rebuilding=True)
-            if message_data.get('role') == 'model': bubble.add_copy_button()
-
-    def create_magic_prompts_bar(self):
-        self.magic_prompts_frame = tk.Frame(self.container, bg=self.BG_COLOR)
-        self.magic_prompts_frame.grid(row=2, column=0, sticky="w", pady=5, padx=10)
-        prompts = ["Summarize", "Explain Simply", "Find Action Items"]
-        for i, prompt in enumerate(prompts):
-            btn = tk.Button(self.magic_prompts_frame, text=prompt, name=f"magic_prompt_{i}",
-                            font=(self.font_family, 9),
-                            command=lambda p=prompt: self.populate_prompt_entry(p),
-                            relief="flat", bd=0, padx=8, pady=4,
-                            bg=self.C_WIDGET_BG, fg=self.C_TEXT_SECONDARY,
-                            activebackground=self.C_BUTTON_HOVER, activeforeground=self.C_TEXT_PRIMARY)
-            btn.grid(row=0, column=i, padx=3)
-
-        # Make the center column expand to push the toggle to the right
-        self.magic_prompts_frame.grid_columnconfigure(1, weight=1)
-        
-        # Create and place the new toggle on the right side
-        context_toggle = ttk.Checkbutton(self.magic_prompts_frame, text="Share Context", variable=self.share_context)
-        context_toggle.grid(row=0, column=3, sticky="e")
-        #autopilot toggle
-        autopilot_toggle = ttk.Checkbutton(self.magic_prompts_frame, text="Autopilot", variable=self.autopilot_enabled, command=self._apply_settings_changes)
-        autopilot_toggle.grid(row=0, column=4, sticky="e", padx=(10,0))
-    
-    def populate_prompt_entry(self, prompt_text): self.ai_prompt_entry.delete(0, tk.END); self.ai_prompt_entry.insert(0, prompt_text); self.ai_prompt_entry.focus_set()
+    def populate_prompt_entry(self, prompt_text):
+        """Standard way to fill the main input from presets."""
+        self.user_input.delete(0, tk.END)
+        self.user_input.insert(0, prompt_text)
+        self.user_input.focus_set()
     
     def create_response_area_widgets(self):
-        # The chat container now has a softer look without the hard border
-        self.chat_container = tk.Frame(self.container, bg=self.BG_COLOR, bd=0)
-        self.chat_container.grid(row=3, column=0, sticky="nsew", pady=(0, 0))
-        self.chat_container.grid_rowconfigure(0, weight=1); self.chat_container.grid_columnconfigure(0, weight=1)
-        self.chat_canvas = tk.Canvas(self.chat_container, bg=self.BG_COLOR, highlightthickness=0); self.scrollbar = ttk.Scrollbar(self.chat_container, orient="vertical", command=self.chat_canvas.yview)
-        self.chat_canvas.configure(yscrollcommand=self.scrollbar.set); self.scrollbar.grid(row=0, column=1, sticky='ns'); self.chat_canvas.grid(row=0, column=0, sticky='nsew')
+        """The main conversation area, now using column 1."""
+        self.response_container = tk.Frame(self.container, bg=self.BG_COLOR)
+        self.response_container.grid(row=2, column=1, sticky="nsew") # Row 2 in column 1
+        self.response_container.grid_rowconfigure(0, weight=1)
+        self.response_container.grid_columnconfigure(0, weight=1)
+
+        self.chat_canvas = tk.Canvas(self.response_container, bg=self.BG_COLOR, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(self.response_container, orient="vertical", command=self.chat_canvas.yview)
+        
         self.chat_frame = tk.Frame(self.chat_canvas, bg=self.BG_COLOR)
-        self.canvas_frame = self.chat_canvas.create_window((0, 0), window=self.chat_frame, anchor="nw")
-        self.chat_frame.bind("<Configure>", self.on_frame_configure); self.chat_canvas.bind("<Configure>", self.on_canvas_configure)
-        self.show_message("Welcome! Select a capture mode to begin.", "system")
+        self.chat_frame.bind("<Configure>", lambda e: self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all")))
+        
+        self.canvas_window = self.chat_canvas.create_window((0, 0), window=self.chat_frame, anchor="nw")
+        self.chat_canvas.bind("<Configure>", self._on_canvas_configure)
+
+        self.chat_canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        self.chat_canvas.grid(row=0, column=0, sticky="nsew")
+        self.scrollbar.grid(row=0, column=1, sticky="ns")
+
+        # Mousewheel support
+        self.chat_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
     
-    def on_frame_configure(self, event): self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all"))
-    def on_canvas_configure(self, event): self.chat_canvas.itemconfig(self.canvas_frame, width=event.width)
+    def _on_settings_canvas_configure(self, event):
+        """Syncs settings_inner width with settings_canvas."""
+        if hasattr(self, 'settings_canvas_window'):
+            self.settings_canvas.itemconfig(self.settings_canvas_window, width=event.width)
+
+    def _on_canvas_configure(self, event):
+        """Adjusts the width of the chat_frame inside the canvas when the canvas resizes."""
+        # Use a small offset to prevent horizontal scrollbars from appearing
+        canvas_width = event.width - 4
+        self.chat_canvas.itemconfig(self.canvas_window, width=canvas_width)
+
+    def _on_mousewheel(self, event):
+        """Handles mousewheel scrolling for the chat canvas."""
+        self.chat_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
     def scroll_to_bottom(self): self.chat_canvas.update_idletasks(); self.chat_canvas.yview_moveto(1.0)
     
-    def show_message(self, message_content, role=None, is_rebuilding=False):
-            # --- NEW: If a new AI message arrives and the window is hidden, show it! ---
-        author_for_check = role if isinstance(message_content, str) else message_content.get("role")
-        if author_for_check == "model" and not self.is_visible:
-            self._fade_in()
+    def show_message(self, message_data, role=None, is_rebuilding=False):
+        """Displays a message bubble. Now handles both raw strings and data dicts."""
+        if isinstance(message_data, str):
+            message_data = {"role": role or "system", "parts": [{"text": message_data}]}
         
-        # The rest of the function continues as normal...
-        if isinstance(message_content, str):
-            # This path is for new user messages or simple system messages
-            author = role if role else "user"
-            message_data = {"role": author, "parts": [{"text": message_content}]}
-            
-            # Only add to the AI's conversation history if it's a user message
-            if author == "user" and not is_rebuilding:
-                self.conversation_history.append(message_data)
-        else:
-            # This path is for rebuilding from history or for new AI messages
-            message_data = message_content
-            
-        # THE CRITICAL FIX IS HERE: We now pass the entire message_data dictionary
-        bubble = MessageBubble(self.chat_frame, message_data=message_data, app_instance=self)
-        bubble.pack(fill='x', padx=5, pady=(5,0))
+        if not is_rebuilding:
+            self.conversation_history.append(message_data)
         
-        if message_data.get("role") == "model":
-            self.last_ai_bubble = bubble
-            
+        # Create and add the bubble
+        bubble = MessageBubble(self.chat_frame, message_data, self)
+        # Ensure it fills the entire width of the chat_frame
+        bubble.pack(fill="x", expand=True, padx=20, pady=10)
+        
+        if message_data.get("role") == "model" and message_data["parts"][0]["text"] != "...":
+            bubble.add_copy_button()
+        
         self.scroll_to_bottom()
         return bubble
     
@@ -628,7 +735,12 @@ class OverlayApp:
         def stream_worker():
             """Fetches response chunks from the API and puts them in the queue."""
             response_stream = gemini_client.get_gemini_response_stream(
-                self.api_key_var.get(), history_for_api, self.current_model.get(), self.current_persona, image_path, active_context
+                self.api_key_var.get().strip(), 
+                history_for_api, 
+                self.current_model.get().strip() or "models/gemini-flash-latest", 
+                self.current_persona, 
+                image_path, 
+                active_context
             )
             for chunk in response_stream:
                 self.chunk_queue.put(chunk)
@@ -683,22 +795,10 @@ class OverlayApp:
 
     # PRESERVED: Your copy_to_clipboard method
     def copy_to_clipboard(self, text):
-        self.root.clipboard_clear(); self.root.clipboard_append(text); original_text = self.ai_prompt_entry.get()
-        self.ai_prompt_entry.delete(0, tk.END); self.ai_prompt_entry.insert(0, "Copied!"); self.root.after(2000, lambda: (self.ai_prompt_entry.delete(0, tk.END), self.ai_prompt_entry.insert(0, original_text)))
+        self.root.clipboard_clear(); self.root.clipboard_append(text); original_text = self.user_input.get()
+        self.user_input.delete(0, tk.END); self.user_input.insert(0, "Copied!"); self.root.after(2000, lambda: (self.user_input.delete(0, tk.END), self.user_input.insert(0, original_text)))
     
-    def run_chat_interaction(self, event=None):
-        self.last_user_interaction_time = time.time()
-        self.autopilot.reset_timer()
-
-        user_prompt = self.ai_prompt_entry.get().strip()
-        if not user_prompt or user_prompt == "Ask AI, or select a prompt below...":
-            return
-        
-        self.show_message(user_prompt)
-        self.ai_prompt_entry.delete(0, tk.END)
-        
-        # This now starts the reliable, flicker-free workflow on the main UI thread.
-        self.root.after(10, self._start_interaction_flow)
+    # run_chat_interaction is now replaced by on_user_submit
     
     # PRESERVED: Your _update_ui_with_error method
     def _update_ui_with_error(self, error_text): 
@@ -852,79 +952,135 @@ class OverlayApp:
             self.root.after_cancel(self.feedback_timer_id)
             self.feedback_timer_id = None
 
+    def on_user_submit(self, event=None):
+        """Common entry point for both the Smart Bar and Hotkeys."""
+        self.last_user_interaction_time = time.time()
+        self.autopilot.reset_timer()
+
+        user_prompt = self.user_input.get().strip()
+        if not user_prompt: return
+        
+        self.show_message(user_prompt)
+        self.user_input.delete(0, tk.END)
+        self.root.after(10, self._start_interaction_flow)
+
     def _toggle_theme(self):
-        """Switches between light and dark themes."""
-        new_theme = "light" if self.current_theme.get() == "dark" else "dark"
-        self._apply_theme(new_theme)
-        self._save_settings() # Save the new theme choice
-        self.show_feedback(f"Theme set to: {new_theme.capitalize()}")
+        """Switches between themes using the ThemeProvider."""
+        new_theme, palette = self.theme_provider.switch_theme()
+        self.current_theme.set(new_theme)
+        self._apply_palette()
+        self._apply_theme()
+        self._save_settings()
+        self.show_feedback(f"Theme: {new_theme.capitalize()}")
 
-    def _apply_theme(self, theme_name=None):
-        """Applies all colors and styles for the chosen theme."""
-        if theme_name is None:
-            theme_name = self.current_theme.get()
+    def _apply_theme(self):
+        """Applies the current theme's visual properties across all widgets."""
+        p = self.theme_provider.get_palette()
         
-        self.current_theme.set(theme_name)
-        palette = THEMES[theme_name]
-
-        # 1. Update color variables
-        for key, value in palette.items():
-            setattr(self, key, value)
-        self.BG_COLOR = self.C_BG
-
-        # 2. Update root window style
-        if sys.platform == "win32":
-            pywinstyles.apply_style(self.root, self.WIN_STYLE)
-
-        # 3. Update all major frames
-        self.container.config(bg=self.BG_COLOR)
-        self.control_bar.config(bg=self.BG_COLOR)
-        self.control_bar.winfo_children()[0].config(bg=self.BG_COLOR) # left_frame
-        self.control_bar.winfo_children()[2].config(bg=self.BG_COLOR) # right_frame
-        self.settings_frame.config(bg=self.C_WIDGET_BG)
-        self.magic_prompts_frame.config(bg=self.BG_COLOR)
-        self.chat_container.config(bg=self.BG_COLOR)
-        self.chat_canvas.config(bg=self.BG_COLOR)
-        self.chat_frame.config(bg=self.BG_COLOR)
-
-        # 4. Update specific widgets
-        # Control Bar Buttons
-        for btn in [self.settings_button, self.load_button, self.save_button, self.clear_button]:
-            btn.config(bg=self.C_BG, fg=self.C_TEXT_SECONDARY, activebackground=self.C_BUTTON_HOVER, activeforeground=self.C_TEXT_PRIMARY)
-
-        # Placeholder Entry
-        self.ai_prompt_entry.update_colors(bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, insert_bg=self.C_TEXT_PRIMARY, placeholder_color=self.C_TEXT_SECONDARY)
-
-        # Settings Panel
-        for widget in self.settings_frame.winfo_children():
-            if isinstance(widget, tk.Label):
-                widget.config(bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY)
-            elif isinstance(widget, tk.Frame): # preset_frame, tips_frame
-                widget.config(bg=self.C_WIDGET_BG)
-                for sub_widget in widget.winfo_children():
-                     if isinstance(sub_widget, tk.Label):
-                        sub_widget.config(bg=self.C_WIDGET_BG, fg=self.C_TEXT_PRIMARY if sub_widget.cget('font').endswith('bold') else self.C_TEXT_SECONDARY)
-                     elif isinstance(sub_widget, tk.Button):
-                        sub_widget.config(bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, activebackground=self.C_BUTTON_HOVER)
-
-        self.persona_text.config(bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, insertbackground=self.C_TEXT_PRIMARY)
+        # Update main container and root
+        self.container.config(bg=self.C_BG)
+        self.root.config(bg=self.TRANSPARENT_COLOR)
         
-        # Theme toggle button text
-        if theme_name == "dark":
-            self.theme_button.config(text="☀️ Light", bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, activebackground=self.C_BUTTON_HOVER)
-        else:
-            self.theme_button.config(text="🌙 Dark", bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, activebackground=self.C_BUTTON_HOVER)
+        # Windows Specific Styling
+        if sys.platform == "win32" and hasattr(self, 'root'):
+            try:
+                import pywinstyles
+                pywinstyles.apply_style(self.root, p.get("WIN_STYLE", "mica"))
+            except: pass
 
-        # Magic Prompts
-        for widget in self.magic_prompts_frame.winfo_children():
-            if isinstance(widget, tk.Button):
-                widget.config(bg=self.C_WIDGET_BG, fg=self.C_TEXT_SECONDARY, activebackground=self.C_BUTTON_HOVER, activeforeground=self.C_TEXT_PRIMARY)
+        # Update Sidebar
+        if hasattr(self, 'sidebar'):
+            sidebar_bg = p["C_SIDEBAR"]
+            self.sidebar.config(bg=sidebar_bg)
+            for child in self.sidebar.winfo_children():
+                if isinstance(child, tk.Button):
+                    child.config(bg=sidebar_bg, fg=p["C_TEXT_SECONDARY"], activebackground=p["C_ACCENT"])
 
-        # 5. Re-style all TTK widgets
+        # Update Control Bar
+        if hasattr(self, 'control_bar'):
+            self.control_bar.config(bg=self.C_BG)
+            self.prompt_container.config(bg=self.C_INPUT_BG, highlightbackground=self.C_BORDER)
+            self.user_input.config(bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, insertbackground=self.C_TEXT_PRIMARY)
+            if hasattr(self, 'branding_label'):
+                self.branding_label.config(bg=self.C_BG, fg=self.C_ACCENT)
+        # Update Magic Bar
+        if hasattr(self, 'magic_bar'):
+            self.magic_bar.config(bg=self.C_BG)
+            if hasattr(self, 'mode_btn'):
+                self.mode_btn.config(bg=p["C_ACCENT"])
+            if hasattr(self, 'status_label'):
+                self.status_label.config(bg=self.C_BG, fg=self.C_TEXT_SECONDARY)
+
+        # Update Settings Panel
+        if hasattr(self, 'settings_frame'):
+            self.settings_frame.config(bg=p["C_SIDEBAR"], highlightbackground=self.C_BORDER)
+            if hasattr(self, 'settings_canvas'):
+                self.settings_canvas.config(bg=p["C_SIDEBAR"])
+            if hasattr(self, 'settings_inner'):
+                self.settings_inner.config(bg=p["C_SIDEBAR"])
+                # Recursively update labels and other widgets in settings
+                self._update_widget_colors(self.settings_inner, p)
+        
+        # Ensure scrollable settings also scale
+        if hasattr(self, 'settings_canvas') and hasattr(self, 'settings_canvas_window'):
+            w = self.settings_canvas.winfo_width()
+            if w > 1: # Only scale if mapped
+                self.settings_canvas.itemconfig(self.settings_canvas_window, width=w)
+
+        # Update Response area
+        if hasattr(self, 'response_container'):
+            self.response_container.config(bg=self.C_BG)
+            self.chat_canvas.config(bg=self.C_BG)
+            self.chat_frame.config(bg=self.C_BG)
+            self.rebuild_chat_display()
+
         self.setup_ttk_styles()
 
-        # 6. Rebuild chat display to apply new bubble colors
-        self.rebuild_chat_display()
+    def _update_widget_colors(self, parent, p):
+        """Recursively updates colors for all children of a parent widget based on theme palette."""
+        is_settings = (parent == self.settings_frame or parent == self.settings_inner or parent == self.settings_canvas)
+        bg_to_use = p["C_SIDEBAR"] if is_settings else parent["bg"]
+        
+        for child in parent.winfo_children():
+            try:
+                if isinstance(child, tk.Label):
+                    # Check if it's a "header" label by font size/weight
+                    font_info = str(child.cget("font")).lower()
+                    if "bold" in font_info and ("18" in font_info or "14" in font_info):
+                        child.config(bg=bg_to_use, fg=p["C_ACCENT"])
+                    else:
+                        fg_color = p["C_TEXT_PRIMARY"] if "bold" in font_info else p["C_TEXT_SECONDARY"]
+                        child.config(bg=bg_to_use, fg=fg_color)
+                elif isinstance(child, (tk.Frame, tk.Canvas)):
+                    child.config(bg=bg_to_use)
+                    self._update_widget_colors(child, p)
+                elif isinstance(child, tk.Button):
+                    text = str(child.cget("text")).upper()
+                    if "SAVE" in text or "THEME" in text:
+                        child.config(bg=p["C_ACCENT"], fg="white", activebackground=p["C_ACCENT_HOVER"])
+                    else:
+                        child.config(bg=p["C_INPUT"], fg=p["C_TEXT_PRIMARY"], activebackground=p["C_ACCENT"])
+                elif isinstance(child, tk.Text):
+                    child.config(bg=p["C_INPUT"], fg=p["C_TEXT_PRIMARY"], insertbackground=p["C_TEXT_PRIMARY"])
+                elif isinstance(child, tk.Checkbutton):
+                    child.config(bg=bg_to_use, fg=p["C_TEXT_PRIMARY"], selectcolor=bg_to_use, 
+                                 activebackground=bg_to_use, activeforeground=p["C_ACCENT"])
+                elif isinstance(child, ttk.Entry):
+                    # ttk widgets are handled via styles, but we can nudge them
+                    pass
+            except:
+                continue
+
+    def rebuild_chat_display(self):
+        """Clears and re-adds all message bubbles."""
+        self.root.update_idletasks() # Ensure layout is settled
+        for widget in self.chat_frame.winfo_children():
+            widget.destroy()
+        
+        history = self.conversation_history
+
+        for msg in history:
+            self.show_message(msg, is_rebuilding=True)
 
         # ---- HOTKEY ACTIONS ----
 
@@ -971,6 +1127,7 @@ class OverlayApp:
         self._save_settings() # Save the change immediately
         feedback = "ON" if new_state else "OFF"
         self.show_feedback(f"Context sharing: {feedback}")
+
 
     def _apply_settings_changes(self):
         """Applies settings that need to take effect immediately."""

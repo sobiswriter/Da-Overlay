@@ -10,7 +10,14 @@ def get_gemini_response_stream(api_key, conversation_history, model_name="gemini
     Sends the conversation history, an optional image, and active window context
     to a specified Gemini model and yields the text chunks from the streaming response.
     """
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:streamGenerateContent?key={api_key}&alt=sse"
+    api_key = api_key.strip()
+    # Handle both "models/gemini-..." and "gemini-..." identifiers
+    model_id = model_name.strip()
+    if model_id.startswith("models/"):
+        model_id = model_id.replace("models/", "", 1)
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:streamGenerateContent?key={api_key}&alt=sse"
+    print(f"[CLIENT] Requesting model: {model_id}")
     headers = {'Content-Type': 'application/json'}
 
     if not api_key:

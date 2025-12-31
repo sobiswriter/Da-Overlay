@@ -1,157 +1,115 @@
 # --- ui/message_bubble.py ---
 import tkinter as tk
 import re
-
-# NEW: Imports for syntax highlighting
 from pygments import lex
 from pygments.lexers import get_lexer_by_name, guess_lexer
 from pygments.styles import get_style_by_name
 from pygments.token import Token
 
 class MessageBubble(tk.Frame):
+    """Professional, card-style message bubble using the active theme."""
     def __init__(self, parent, message_data, app_instance, **kwargs):
         super().__init__(parent, **kwargs)
         self.app_instance = app_instance
         self.message_data = message_data
         
-        
-        author = message_data.get("role", "user")
-        text = message_data["parts"][0].get("text", "")
+        author = message_data.get("role", "system")
+        text = message_data.get("parts", [{}])[0].get("text", "")
         is_user = author == "user"
         is_system = author == "system"
         
-        # --- Styling ---
-        # Use the color palette from the main app instance for a consistent theme
-        if is_user:
-            bubble_bg = self.app_instance.C_USER_BUBBLE_BG
-            author_fg = self.app_instance.C_USER_BUBBLE_FG
-            text_fg = self.app_instance.C_USER_BUBBLE_FG
-        elif is_system:
-            bubble_bg = self.app_instance.C_BG
-            author_fg = self.app_instance.C_TEXT_SECONDARY
-            text_fg = self.app_instance.C_TEXT_SECONDARY
-        else: # AI/Model
-            bubble_bg = self.app_instance.C_WIDGET_BG
-            author_fg = self.app_instance.C_TEXT_PRIMARY
-            text_fg = self.app_instance.C_TEXT_PRIMARY
-
-        # This is now the bubble's colored background
-        self.config(bg=bubble_bg)
-
-        # --- Top Frame for Author and Pin Button ---
-        top_frame = tk.Frame(self, bg=bubble_bg)
-        top_frame.pack(side="top", fill="x", padx=10, pady=(5,0))
-
-        author_font = ("Segoe UI", 10, 'italic') if is_system else ("Segoe UI", 10, 'bold')
-        author_label = tk.Label(top_frame, text=author.capitalize(), font=author_font, fg=author_fg, bg=bubble_bg)
-        author_label.pack(side="left")
-
-        if author == "model":
-            is_pinned = self.message_data.get('pinned', False)
-            pin_char = "★" if is_pinned else "☆"
-            pin_fg = "#F59E0B" if is_pinned else self.app_instance.C_TEXT_SECONDARY
-            self.pin_button = tk.Button(top_frame, text=pin_char, fg=pin_fg, bg=bubble_bg, relief='flat', font=("Segoe UI", 14), cursor="hand2", command=self.toggle_pin, bd=0, highlightthickness=0)
-            self.pin_button.pack(side="right")
-
-        # --- Message Area (Text widget) ---
-        # text_fg is defined above based on role
-        self.message_text = tk.Text(self, font=("Segoe UI", 11), wrap=tk.WORD, bg=bubble_bg, fg=text_fg, relief="flat", borderwidth=0, state="disabled", highlightthickness=0, height=1, padx=10)
-        self.message_text.pack(side="top", fill="x", expand=True, padx=10, pady=(0, 5))
+        # Deriving colors from ThemeProvider
+        p = self.app_instance.theme_provider.get_palette()
+        is_light = self.app_instance.current_theme.get() == "light"
         
-        # --- NEW: Configure a whole bunch of tags for Markdown and Syntax Highlighting ---
-        self.message_text.tag_configure("h1", font=("Segoe UI", 16, 'bold'), spacing1=5, spacing3=5)
-        self.message_text.tag_configure("bold", font=("Segoe UI", 11, 'bold'))
-        self.message_text.tag_configure("italic", font=("Segoe UI", 11, 'italic'))
-        self.message_text.tag_configure("list_item", lmargin1=20, lmargin2=20)
-        self.message_text.tag_configure("code_block", font=("Consolas", 10), background="#282c34", foreground="#abb2bf", relief="flat", borderwidth=1, lmargin1=15, lmargin2=15, rmargin=15, wrap="word", spacing1=5, spacing3=5)
+        self.bubble_bg = p["C_CARD"] if not is_user else p["C_ACCENT"]
+        self.text_fg = p["C_TEXT_PRIMARY"] if not is_user else "#FFFFFF"
+        self.author_fg = p["C_ACCENT"] if not is_user else ("#E0E0E0" if not is_light else "#F0F0F0")
+        
+        if is_system:
+            self.bubble_bg = p["C_BG"]
+            self.text_fg = p["C_TEXT_SECONDARY"]
 
-        # Configure tags from a Pygments style
-        self.configure_pygments_tags()
+        # Add a subtle border in light mode for "card" definition
+        border_thickness = 1 if (is_light and not is_user) else 0
+        self.config(bg=self.bubble_bg, padx=12, pady=10, 
+                    highlightthickness=border_thickness, highlightbackground=p["C_BORDER"])
+        
+        # Apply rounding to the bubble frame
+        try:
+            import pywinstyles
+            pywinstyles.apply_style(self, "rounded")
+        except: pass
+        
+        # --- Header ---
+        header_frame = tk.Frame(self, bg=self.bubble_bg)
+        header_frame.pack(side="top", fill="x")
+        
+        # Author Label
+        author_txt = "YOU" if is_user else author.upper()
+        tk.Label(header_frame, text=author_txt, font=("Segoe UI", 9, "bold"), 
+                 bg=self.bubble_bg, fg=self.author_fg).pack(side="left")
 
-        self.message_text.tag_configure("normal", font=("Segoe UI", 11))
+        # --- Content ---
+        self.message_text = tk.Text(self, font=("Segoe UI", 11), wrap=tk.WORD, 
+                                   bg=self.bubble_bg, fg=self.text_fg, 
+                                   relief="flat", bd=0, highlightthickness=0, 
+                                   state="disabled", height=1, width=1) # Width=1 allows expansion
+        self.message_text.pack(side="top", fill="x", expand=True, pady=(5, 0))
+        
+        # Markdown Tags
+        self.message_text.tag_configure("h1", font=("Segoe UI", 14, "bold"), spacing1=5)
+        self.message_text.tag_configure("bold", font=("Segoe UI", 11, "bold"))
+        
+        code_bg = p["C_INPUT"] if is_light else p["C_BG"]
+        self.message_text.tag_configure("code_block", font=("Consolas", 10), 
+                                       background=code_bg, foreground=p["C_TEXT_PRIMARY"],
+                                       spacing1=5, spacing3=5, lmargin1=10, lmargin2=10)
+        
+        self.configure_pygments(p)
         self.set_text(text)
 
-# Find the set_text method in the MessageBubble class and replace it with this:
-    # NEW: Method to create Tkinter tags from a Pygments style
-    def configure_pygments_tags(self):
-        style = get_style_by_name('monokai') # You can try other styles like 'default', 'solarized-dark', etc.
-        for token_type, token_style in style:
-            tag_name = str(token_type)
-            # Create a tag with the style's properties
-            self.message_text.tag_configure(tag_name, foreground=f"#{token_style['color']}" if token_style['color'] else None, font=(("Consolas", 10, 'bold') if token_style['bold'] else ("Consolas", 10)))
-    
-    def set_text(self, new_text):
+    def configure_pygments(self, palette):
+        """Minimalist professional code highlighting."""
+        # Simple high-contrast colors for Obsidian theme
+        self.message_text.tag_configure(str(Token.Keyword), foreground=palette["C_ACCENT"])
+        self.message_text.tag_configure(str(Token.String), foreground="#A5D6FF")
+        self.message_text.tag_configure(str(Token.Comment), foreground=palette["C_TEXT_SECONDARY"])
+
+    def set_text(self, text):
         self.message_text.config(state="normal")
         self.message_text.delete("1.0", tk.END)
-
-        in_code_block = False
-        code_language = 'text' # Default language
-        code_buffer = []
-
-        for line in new_text.split('\n'):
-            if line.strip().startswith('```'):
-                if in_code_block:
-                    # End of a code block -> highlight and insert
-                    try:
-                        lexer = get_lexer_by_name(code_language)
-                    except:
-                        lexer = guess_lexer("\n".join(code_buffer))
-                    
-                    tokens = lex("\n".join(code_buffer), lexer)
-                    self.message_text.insert(tk.END, '\n')
-                    for token_type, token_value in tokens:
-                        self.message_text.insert(tk.END, token_value, (str(token_type), "code_block"))
-                    self.message_text.insert(tk.END, '\n\n', "code_block")
-                    
-                    in_code_block, code_buffer, code_language = False, [], 'text'
-                else:
-                    # Start of a code block
-                    in_code_block = True
-                    code_language = line.strip()[3:] or 'text'
-                continue
-
-            if in_code_block:
-                code_buffer.append(line)
-            else:
-                # Handle normal Markdown lines
-                if line.startswith('# '):
-                    self.message_text.insert(tk.END, line[2:] + '\n', 'h1')
-                elif line.strip().startswith('* ') or line.strip().startswith('- '):
-                    self.message_text.insert(tk.END, f"• {line.strip()[2:]}\n", 'list_item')
-                else:
-                    parts = re.split(r'(\*\*.*?\*\*|\*.*?\*)', line)
-                    for part in parts:
-                        if part.startswith('**') and part.endswith('**'): self.message_text.insert(tk.END, part[2:-2], 'bold')
-                        elif part.startswith('*') and part.endswith('*'): self.message_text.insert(tk.END, part[1:-1], 'italic')
-                        else: self.message_text.insert(tk.END, part)
-                    self.message_text.insert(tk.END, '\n')
-
-        # CRITICAL FIX 1: Re-calculate the required height
-        self.message_text.update_idletasks()
-        # The height is the number of lines from start to finish
-        height = int(self.message_text.index('end-1c').split('.')[0])
-        self.message_text.config(height=height)
         
+        # Simple Markdown parsing (optimized)
+        lines = text.split("\n")
+        in_code = False
+        for line in lines:
+            if line.strip().startswith("```"):
+                in_code = not in_code
+                continue
+            
+            tag = "code_block" if in_code else None
+            self.message_text.insert(tk.END, line + "\n", tag)
+            
+        # Adjust Height
+        self.message_text.bind("<Configure>", lambda e: self._adjust_height())
+        self._adjust_height()
         self.message_text.config(state="disabled")
 
-        # CRITICAL FIX 2: Tell the main window that we have resized
-        self.app_instance._on_bubble_resize()
+    def _adjust_height(self):
+        """Dynamically adjusts the height of the text widget based on content wrapping."""
+        # This calculation needs to happen after layout is settled
+        self.message_text.update_idletasks()
+        # count how many lines are currently visible on screen (including wrapped ones)
+        # Using 1.0 to end-1c and checking displaylines
+        d_lines = self.message_text.count("1.0", "end-1c", "displaylines")
+        num_lines = (d_lines[0] if d_lines else 1) or 1
+        self.message_text.config(height=num_lines)
 
-    def get_text(self):
-        return self.message_text.get("1.0", "end-1c")
-    
     def add_copy_button(self):
-        # THE CRITICAL FIX IS HERE: We now use .pack() instead of .grid()
-        copy_button = tk.Button(self, text="📋 Copy", 
-                                command=lambda: self.app_instance.copy_to_clipboard(self.get_text()), 
-                                bg=self.cget('bg'), # Match the bubble background
-                                fg=self.app_instance.C_TEXT_SECONDARY, 
-                                activeforeground=self.app_instance.C_TEXT_PRIMARY,
-                                activebackground=self.cget('bg'),
-                                relief='flat', font=("Segoe UI", 9), cursor="hand2", bd=0)
-        copy_button.pack(side="bottom", anchor="e", padx=10, pady=(0, 5))
-
-    def toggle_pin(self):
-        is_currently_pinned = self.message_data.get('pinned', False)
-        self.message_data['pinned'] = not is_currently_pinned
-        self.app_instance.rebuild_chat_display() # Tell the main app to refresh the view
+        text = self.message_data.get("parts", [{}])[0].get("text", "")
+        btn = tk.Button(self, text="COPY LOG", font=("Segoe UI", 8, "bold"),
+                        bg=self.bubble_bg, fg=self.author_fg, relief="flat", bd=0,
+                        activebackground=self.bubble_bg, activeforeground=self.text_fg,
+                        command=lambda: self.app_instance.copy_to_clipboard(text))
+        btn.pack(side="bottom", anchor="e", pady=(5, 0))
