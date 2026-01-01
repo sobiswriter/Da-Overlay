@@ -5,7 +5,7 @@ import copy
 import json
 import re
 
-def get_gemini_response_stream(api_key, conversation_history, model_name="gemini-2.5-flash", persona_text="You are a helpful AI.", image_path=None, active_context=None):
+def get_gemini_response_stream(api_key, conversation_history, model_name="gemini-3-flash-preview", persona_text="You are a helpful AI.", image_path=None, active_context=None):
     """
     Sends the conversation history, an optional image, and active window context
     to a specified Gemini model and yields the text chunks from the streaming response.
@@ -17,10 +17,15 @@ def get_gemini_response_stream(api_key, conversation_history, model_name="gemini
         model_id = model_id.replace("models/", "", 1)
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:streamGenerateContent?key={api_key}&alt=sse"
-    print(f"[CLIENT] Requesting model: {model_id}")
+    
+    # Debug: help identify issues with keys or models
+    redacted_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "***"
+    print(f"[CLIENT] Requesting model: {model_id} (Key: {redacted_key})")
+    
     headers = {'Content-Type': 'application/json'}
 
     if not api_key:
+        print("[CLIENT] Error: API Key is empty!")
         yield "Error: Gemini API key is missing."
         return
     if not isinstance(conversation_history, list):

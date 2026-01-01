@@ -107,6 +107,15 @@ class OverlayApp:
         self._load_settings() # Load settings (including theme) on startup
         self._apply_theme() # Apply the loaded theme
         self._apply_settings_changes() # Start Autopilot if it's enabled on launch
+        
+        # NUCLEAR OPTION: Force an internal sync and save on startup
+        self.api_key = self.api_key_var.get().strip()
+        self.current_persona = self.persona_text.get("1.0", "end-1c").strip()
+        self._save_settings() 
+
+        # Open settings automatically on startup as requested
+        self.toggle_settings_panel()
+
         # At the end of the __init__ method
         self.last_feedback_bubble = None # To keep a reference to the temporary message
         self.feedback_timer_id = None    # To manage the auto-hide timer
@@ -155,6 +164,7 @@ class OverlayApp:
             ("🔗", self.toggle_context_sharing, "Share Context"),
             ("💾", self.save_chat, "Save Chat"),
             ("📂", self.load_chat, "Load Chat"),
+            ("🔄", self.refresh_ui, "Refresh UI"),
             ("🧹", self.clear_chat, "Clear")
         ]
 
@@ -346,7 +356,7 @@ class OverlayApp:
 
         tk.Label(left_col, text="Gemini Model:", font=(self.font_family, 10, 'bold'), 
                  bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w")
-        models = ["gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash-preview", "gemini-2.5-flash-lite"]
+        models = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
         self.model_dropdown = ttk.Combobox(left_col, textvariable=self.current_model, values=models, state="readonly")
         self.model_dropdown.pack(fill="x", pady=(5, 10))
 
@@ -487,11 +497,18 @@ class OverlayApp:
             with open("settings.json", 'r') as f:
                 settings = json.load(f)
                 self.current_theme.set(settings.get("theme", "dark"))
-                self.current_model.set(settings.get("model", "models/gemini-flash-latest"))
+                self.current_model.set(settings.get("model", "gemini-3-flash-preview"))
                 self.current_persona = settings.get("persona", tars_persona)
                 self.share_context.set(settings.get("share_context", True))
-                self.api_key_var.set(settings.get("api_key", ""))
-                self.api_key = self.api_key_var.get()
+                
+                # Robust API Key Loading: Favor file but fallback to .env
+                file_key = settings.get("api_key", "").strip()
+                if file_key:
+                    self.api_key_var.set(file_key)
+                elif os.getenv("GEMINI_API_KEY"):
+                    self.api_key_var.set(os.getenv("GEMINI_API_KEY").strip())
+                
+                self.api_key = self.api_key_var.get().strip()
                 
                 # If no API key is found, gently nudge the user to the settings panel
                 if not self.api_key:
@@ -511,7 +528,7 @@ class OverlayApp:
 
         except (FileNotFoundError, json.JSONDecodeError):
             self.current_theme.set("dark")
-            self.current_model.set("models/gemini-flash-lite-latest")
+            self.current_model.set("gemini-3-flash-preview")
             self.current_persona = tars_persona
             self.share_context.set(True)
             self.autopilot_intervals = default_intervals
@@ -523,10 +540,15 @@ class OverlayApp:
 
         self.persona_text.delete("1.0", tk.END)
         self.persona_text.insert("1.0", self.current_persona)
+        
+        # Ensure all variables are in sync for the UI
         self.autopilot_intervals_var.set(", ".join(map(str, self.autopilot_intervals)))
         self.autopilot_cooldown_var.set(str(self.autopilot_cooldown_seconds))
         self.autopilot.stop()
         self.autopilot = Autopilot(self, intervals=self.autopilot_intervals)
+        
+        # Always save immediately after loading to ensure file is fresh
+        self._save_settings()
 
     def _save_settings(self):
         settings = {
@@ -540,6 +562,7 @@ class OverlayApp:
         }
         with open("settings.json", 'w') as f:
             json.dump(settings, f, indent=4)
+        print(f"[SETTINGS] Configuration persisted to settings.json at {time.strftime('%H:%M:%S')}")
 
     def _thinking_animation(self, bubble, counter=0):
         """Creates a pulsing 'thinking' animation in a message bubble."""
@@ -645,10 +668,25 @@ class OverlayApp:
         """Forces focus on the main Smart Bar input."""
         self.user_input.focus_set()
     # PRESERVED: Your clear_chat method
+    def refresh_ui(self):
+        """Manual trigger to rebuild the UI if it gets stuck or blank."""
+        self.rebuild_chat_display()
+        self.show_feedback("UI Refreshed")
+
+    # PRESERVED: Your clear_chat method
     def clear_chat(self, feedback=True):
-        self.conversation_history = [];
-        for widget in self.chat_frame.winfo_children(): widget.destroy()
-        if feedback: self.show_feedback("Chat cleared!")
+        self.conversation_history = []
+        # Safely clear the UI
+        for widget in self.chat_frame.winfo_children(): 
+            widget.destroy()
+        
+        # Explicitly reset canvas positioning and scroll region
+        self.chat_canvas.yview_moveto(0)
+        self.root.update_idletasks()
+        self.chat_canvas.config(scrollregion=(0, 0, 0, 0))
+        
+        if feedback: 
+            self.show_feedback("Chat cleared!")
 
     def populate_prompt_entry(self, prompt_text):
         """Standard way to fill the main input from presets."""
@@ -732,12 +770,21 @@ class OverlayApp:
         # Use a queue to safely pass data from the worker thread to the main thread
         self.chunk_queue = queue.Queue()
 
+        # Capture thread-hostile Tkinter variables in the main thread
+        # Sync the internal attribute with the UI variable just in case
+        api_key_from_ui = self.api_key_var.get().strip()
+        if api_key_from_ui:
+            self.api_key = api_key_from_ui
+            
+        api_key_to_use = api_key_from_ui or self.api_key
+        model_name_to_use = self.current_model.get().strip() or "gemini-3-flash-preview"
+
         def stream_worker():
             """Fetches response chunks from the API and puts them in the queue."""
             response_stream = gemini_client.get_gemini_response_stream(
-                self.api_key_var.get().strip(), 
+                api_key_to_use, 
                 history_for_api, 
-                self.current_model.get().strip() or "models/gemini-flash-latest", 
+                model_name_to_use, 
                 self.current_persona, 
                 image_path, 
                 active_context
@@ -1072,15 +1119,21 @@ class OverlayApp:
                 continue
 
     def rebuild_chat_display(self):
-        """Clears and re-adds all message bubbles."""
-        self.root.update_idletasks() # Ensure layout is settled
+        """Clears and re-adds all message bubbles from history."""
+        # 1. Clear existing widgets
         for widget in self.chat_frame.winfo_children():
             widget.destroy()
         
-        history = self.conversation_history
-
+        # 2. Force a layout update to ensure frames are ready
+        self.root.update_idletasks()
+        
+        # 3. Re-add messages
+        history = list(self.conversation_history) # Work with a shallow copy
         for msg in history:
             self.show_message(msg, is_rebuilding=True)
+        
+        # 4. Final scroll update
+        self._on_bubble_resize()
 
         # ---- HOTKEY ACTIONS ----
 

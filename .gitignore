@@ -16,3 +16,4 @@ dist/
 
 # Screenshot artifacts
 *.png
+*.json
