@@ -1,30 +1,32 @@
 # 🌸 Overlay Cutex (Anna)
 
-**Overlay Cutex** is a premium, glass-morphic AI companion for your Windows desktop. Designed with aesthetics and utility in mind, it provides a transparent overlay to interact with the Gemini AI while you work or play.
+**Overlay Cutex** is a premium, glassmorphic AI companion for your Windows desktop. Designed with aesthetics and utility in mind, it provides a transparent overlay to interact with the Gemini AI while you work or play.
 
 ![Preview](screenshot.png)
 
-## ✨ Core Features
+## ✨ New & Advanced Features
 
-- **🎨 Glassmorphic UI**: A stunning, transparent interface that blends into your workspace.
-- **👁️ Context-Aware**: Anna can "see" your active window and selected screen regions to provide relevant assistance.
-- **🚀 Autopilot Mode**: An autonomous mode where Anna proactively observes your activity and offers gentle, non-intrusive insights.
+- **🎨 Glassmorphic UI**: A stunning, transparent interface using Mica/Aero effects.
+- **👁️ Context-Aware Highlighting**: Anna "sees" your active window and selected screen regions.
+- **🚀 Autopilot Engine**: Proactive AI suggests insights based on your activity (Configurable intervals).
+- **⚙️ Control Dashboard**: A professional 2-column settings panel for AI, VISUALS, and SHORTCUTS.
+- **🔄 UI Refresh**: Dedicated refresh button to ensure the interface stays responsive and clean.
 - **🎭 Multi-Persona**: Switch between various personalities including Anna, TARS, Holmes, and more.
 - **⌨️ Global Hotkeys**: Total control at your fingertips without ever leaving your current app.
-- **🌓 Dynamic Themes**: Beautifully crafted Light and Dark modes.
+- **🌓 Dynamic Themes**: Beautifully crafted Light and Dark modes with instant switching.
 
-## ⌨️ Hotkeys
+## ⌨️ Global Hotkeys
 
 | Action | Hotkey |
 | :--- | :--- |
 | **Show / Hide App** | `Alt + X` |
 | **Focus Chat Input** | `Alt + A` |
-| **Move Window** | `Alt + Numpad (8, 4, 2, 6)` |
 | **Cycle Capture Mode** | `Alt + 0` |
-| **Toggle Context Sharing** | `Alt + 5` |
+| **Toggle Context Sync** | `Alt + 5` |
 | **Toggle Theme** | `Alt + D` |
 | **Increase Opacity** | `Alt + W` |
 | **Decrease Opacity** | `Alt + S` |
+| **Move Window** | `Alt + Numpad (8, 4, 2, 6)` |
 
 ## 🚀 Getting Started
 
@@ -46,21 +48,29 @@
    ```
 
 3. **Configure API Key**:
-   Create a `.env` file in the root:
+   Create a `.env` file in the root or enter it directly in the app's **Control Dashboard**:
    ```env
    GEMINI_API_KEY=your_key_here
    ```
 
 4. **Run**:
-   ```pwsh
-   python main.py
-   ```
+   - Double-click `run.vbs` for a silent background launch.
+   - Or run `python main.py` in your terminal.
+
+## 🛠️ Building the Application
+
+To create a standalone `.exe` for distribution:
+
+1. Run the `build.bat` script.
+2. The executable will be generated in the `dist/` directory.
+3. Ensure `flower.ico` is in the root directory during the build process.
 
 ## 🛠️ Built With
 - **Python** & **Tkinter**
-- **Gemini 2.5 Pro/Flash**
-- **pywinstyles** for Windows effects
+- **Gemini 3.0/2.5/Flash**
+- **pywinstyles** for native Windows glass effects
 - **mss** for ultra-fast screen capture
+- **pygments** for code syntax highlighting in chat
 
 ---
 

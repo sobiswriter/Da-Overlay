@@ -13,6 +13,7 @@ cutie.json
 build/
 dist/
 *.spec
+!Cutex Overlay.spec
 
 # Screenshot artifacts
 *.png
