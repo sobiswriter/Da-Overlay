@@ -13,11 +13,53 @@ import pywinstyles
 import copy
 import queue
 from utils.theme_manager import ThemeProvider
-
-
-# Note: We are no longer importing SettingsWindow
 from ui.placeholder_entry import PlaceholderEntry
 from utils.context_manager import get_active_window_info
+
+class ToolTip(object):
+    def __init__(self, widget, text='widget info'):
+        self.widget = widget
+        self.text = text
+        self.widget.bind("<Enter>", self.enter)
+        self.widget.bind("<Leave>", self.close)
+        self.id = None
+        self.tw = None
+
+    def enter(self, event=None):
+        self.schedule()
+
+    def schedule(self):
+        self.unschedule()
+        self.id = self.widget.after(500, self.showtip)
+
+    def unschedule(self):
+        id = self.id
+        self.id = None
+        if id:
+            self.widget.after_cancel(id)
+
+    def showtip(self, event=None):
+        x, y, cx, cy = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 20
+        self.tw = tk.Toplevel(self.widget)
+        self.tw.wm_overrideredirect(True)
+        self.tw.wm_geometry("+%d+%d" % (x, y))
+        label = tk.Label(self.tw, text=self.text, justify='left',
+                       background="#1a1a1a", foreground="white", relief='solid', borderwidth=1,
+                       font=("Segoe UI", 8, "normal"), padx=5, pady=2)
+        label.pack(ipadx=1)
+        # Apply slight transparency if supported
+        try:
+            self.tw.attributes("-alpha", 0.95)
+        except: pass
+
+    def close(self, event=None):
+        self.unschedule()
+        if self.tw:
+            self.tw.destroy()
+            self.tw = None
+
 from ui.region_selector import RegionSelector
 from ui.message_bubble import MessageBubble
 from utils import gemini_client
@@ -160,13 +202,14 @@ class OverlayApp:
         # Sidebar Icons (Placeholder text for now, can be replaced with actual icons)
         actions = [
             ("⚙️", self.toggle_settings_panel, "Settings"),
-            ("📷", self.cycle_capture_mode, "Capture"),
+            ("📷", self.cycle_capture_mode, "Capture Mode"),
             ("🤖", self._toggle_autopilot_ui, "Autopilot"),
             ("🔗", self.toggle_context_sharing, "Share Context"),
+            ("🌍", self.toggle_grounding, "Google Grounding"),
             ("💾", self.save_chat, "Save Chat"),
             ("📂", self.load_chat, "Load Chat"),
             ("🔄", self.refresh_ui, "Refresh UI"),
-            ("🧹", self.clear_chat, "Clear")
+            ("🧹", self.clear_chat, "Clear Chat")
         ]
 
         for i, (icon, cmd, tooltip) in enumerate(actions):
@@ -179,9 +222,13 @@ class OverlayApp:
                 import pywinstyles
                 pywinstyles.apply_style(btn, "rounded")
             except: pass
-            # Hover effect
-            btn.bind("<Enter>", lambda e, b=btn: b.config(fg=self.C_ACCENT))
-            btn.bind("<Leave>", lambda e, b=btn: b.config(fg=self.C_TEXT_SECONDARY))
+            
+            # Hover effect for color
+            btn.bind("<Enter>", lambda e, b=btn: b.config(fg=self.C_ACCENT), add="+")
+            btn.bind("<Leave>", lambda e, b=btn: b.config(fg=self.C_TEXT_SECONDARY), add="+")
+            
+            # Add Tooltip
+            ToolTip(btn, tooltip)
 
     def _toggle_autopilot_ui(self):
         self.autopilot_enabled.set(not self.autopilot_enabled.get())
@@ -387,6 +434,21 @@ class OverlayApp:
                                    insertbackground=self.C_TEXT_PRIMARY, padx=10, pady=10)
         self.persona_text.pack(fill="x", pady=5)
 
+        toggles_frame = tk.Frame(left_col, bg=self.C_SIDEBAR)
+        toggles_frame.pack(fill="x", pady=(5, 10))
+
+        self.share_ctx_check = tk.Checkbutton(toggles_frame, text="Sync Context", variable=self.share_context,
+                                             bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY, selectcolor=self.C_SIDEBAR,
+                                             activebackground=self.C_SIDEBAR, activeforeground=self.C_ACCENT,
+                                             font=(self.font_family, 9))
+        self.share_ctx_check.pack(side="left", padx=(0, 15))
+
+        self.grounding_check = tk.Checkbutton(toggles_frame, text="Google Grounding", variable=self.grounding_enabled,
+                                             bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY, selectcolor=self.C_SIDEBAR,
+                                             activebackground=self.C_SIDEBAR, activeforeground=self.C_ACCENT,
+                                             font=(self.font_family, 9))
+        self.grounding_check.pack(side="left", padx=(0, 0))
+
         # --- RIGHT COLUMN: APP & SHORTCUTS ---
         right_col = tk.Frame(self.settings_inner, bg=self.C_SIDEBAR)
         right_col.grid(row=1, column=1, sticky="nsew")
@@ -427,21 +489,9 @@ class OverlayApp:
         self.theme_button = tk.Button(misc_frame, text="Switch Theme", command=self._toggle_theme, 
                                      bg=self.C_ACCENT, fg="white", font=(self.font_family, 9, "bold"),
                                      relief="flat", padx=15, pady=6)
-        self.theme_button.pack(side="left")
+        self.theme_button.pack(side="left", padx=(0, 10))
         try: pywinstyles.apply_style(self.theme_button, "rounded")
         except: pass
-        
-        self.share_ctx_check = tk.Checkbutton(misc_frame, text="Sync Context", variable=self.share_context,
-                                             bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY, selectcolor=self.C_SIDEBAR,
-                                             activebackground=self.C_SIDEBAR, activeforeground=self.C_ACCENT,
-                                             font=(self.font_family, 9))
-        self.share_ctx_check.pack(side="left", padx=15)
-
-        self.grounding_check = tk.Checkbutton(misc_frame, text="Google Grounding", variable=self.grounding_enabled,
-                                             bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY, selectcolor=self.C_SIDEBAR,
-                                             activebackground=self.C_SIDEBAR, activeforeground=self.C_ACCENT,
-                                             font=(self.font_family, 9))
-        self.grounding_check.pack(side="left", padx=15)
 
         # Save/Close Actions
         btn_frame = tk.Frame(self.settings_inner, bg=self.C_SIDEBAR)
@@ -1189,8 +1239,14 @@ class OverlayApp:
         new_state = not self.share_context.get()
         self.share_context.set(new_state)
         self._save_settings() # Save the change immediately
-        feedback = "ON" if new_state else "OFF"
-        self.show_feedback(f"Context sharing: {feedback}")
+        self.show_feedback(f"Context Sync: {'ON' if new_state else 'OFF'}")
+
+    def toggle_grounding(self):
+        """Toggles the 'grounding_enabled' setting and saves it."""
+        new_state = not self.grounding_enabled.get()
+        self.grounding_enabled.set(new_state)
+        self._save_settings() # Save the change immediately
+        self.show_feedback(f"Google Grounding: {'ON' if new_state else 'OFF'}")
 
 
     def _apply_settings_changes(self):
