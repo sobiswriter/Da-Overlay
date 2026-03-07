@@ -5,7 +5,7 @@ import copy
 import json
 import re
 
-def get_gemini_response_stream(api_key, conversation_history, model_name="gemini-3-flash-preview", persona_text="You are a helpful AI.", image_path=None, active_context=None):
+def get_gemini_response_stream(api_key, conversation_history, model_name="gemini-3-flash-preview", persona_text="You are a helpful AI.", image_path=None, active_context=None, grounding_enabled=False):
     """
     Sends the conversation history, an optional image, and active window context
     to a specified Gemini model and yields the text chunks from the streaming response.
@@ -82,6 +82,9 @@ def get_gemini_response_stream(api_key, conversation_history, model_name="gemini
             "temperature": 1.0 # A little more creative for Autopilot!
         }
     }
+
+    if grounding_enabled:
+        payload["tools"] = [{"google_search": {}}]
 
     # The rest of the function is unchanged
     try:

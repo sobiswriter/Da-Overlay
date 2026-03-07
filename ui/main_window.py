@@ -48,6 +48,7 @@ class OverlayApp:
         self.current_persona = ""
         self.settings_visible = False # State for the collapsible panel
         self.share_context = tk.BooleanVar(value=True) # On by default
+        self.grounding_enabled = tk.BooleanVar(value=True) # NEW: Google Search Grounding
         self.thinking_animation_id = None # To control the "thinking" animation
         self.autopilot_enabled = tk.BooleanVar(value=False) # Off by default
 
@@ -356,7 +357,7 @@ class OverlayApp:
 
         tk.Label(left_col, text="Gemini Model:", font=(self.font_family, 10, 'bold'), 
                  bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w")
-        models = ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+        models = ["gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
         self.model_dropdown = ttk.Combobox(left_col, textvariable=self.current_model, values=models, state="readonly")
         self.model_dropdown.pack(fill="x", pady=(5, 10))
 
@@ -436,6 +437,12 @@ class OverlayApp:
                                              font=(self.font_family, 9))
         self.share_ctx_check.pack(side="left", padx=15)
 
+        self.grounding_check = tk.Checkbutton(misc_frame, text="Google Grounding", variable=self.grounding_enabled,
+                                             bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY, selectcolor=self.C_SIDEBAR,
+                                             activebackground=self.C_SIDEBAR, activeforeground=self.C_ACCENT,
+                                             font=(self.font_family, 9))
+        self.grounding_check.pack(side="left", padx=15)
+
         # Save/Close Actions
         btn_frame = tk.Frame(self.settings_inner, bg=self.C_SIDEBAR)
         btn_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(20, 0))
@@ -500,6 +507,7 @@ class OverlayApp:
                 self.current_model.set(settings.get("model", "gemini-3-flash-preview"))
                 self.current_persona = settings.get("persona", tars_persona)
                 self.share_context.set(settings.get("share_context", True))
+                self.grounding_enabled.set(settings.get("grounding_enabled", True))
                 
                 # Robust API Key Loading: Favor file but fallback to .env
                 file_key = settings.get("api_key", "").strip()
@@ -531,6 +539,7 @@ class OverlayApp:
             self.current_model.set("gemini-3-flash-preview")
             self.current_persona = tars_persona
             self.share_context.set(True)
+            self.grounding_enabled.set(True)
             self.autopilot_intervals = default_intervals
             self.autopilot_cooldown_seconds = default_cooldown
             needs_save = True
@@ -556,6 +565,7 @@ class OverlayApp:
             "model": self.current_model.get(),
             "persona": self.current_persona,
             "share_context": self.share_context.get(),
+            "grounding_enabled": self.grounding_enabled.get(),
             "api_key": self.api_key_var.get(), # Persist the API key
             "autopilot_intervals": self.autopilot_intervals,
             "autopilot_cooldown_seconds": self.autopilot_cooldown_seconds
@@ -787,7 +797,8 @@ class OverlayApp:
                 model_name_to_use, 
                 self.current_persona, 
                 image_path, 
-                active_context
+                active_context,
+                grounding_enabled=self.grounding_enabled.get()
             )
             for chunk in response_stream:
                 self.chunk_queue.put(chunk)
