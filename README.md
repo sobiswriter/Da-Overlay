@@ -8,8 +8,10 @@
 
 - **🎨 Glassmorphic UI**: A stunning, transparent interface using Mica/Aero effects.
 - **👁️ Context-Aware Highlighting**: Anna "sees" your active window and selected screen regions.
+- **🌍 Google Search Grounding**: Connects Anna directly to real-time web search for up-to-date facts and citations.
 - **🚀 Autopilot Engine**: Proactive AI suggests insights based on your activity (Configurable intervals).
 - **⚙️ Control Dashboard**: A professional 2-column settings panel for AI, VISUALS, and SHORTCUTS.
+- **🖱️ Intuitive Tooltips**: Helpful hover text explains sidebar actions instantly.
 - **🔄 UI Refresh**: Dedicated refresh button to ensure the interface stays responsive and clean.
 - **🎭 Multi-Persona**: Switch between various personalities including Anna, TARS, Holmes, and more.
 - **⌨️ Global Hotkeys**: Total control at your fingertips without ever leaving your current app.
@@ -67,7 +69,7 @@ To create a standalone `.exe` for distribution:
 
 ## 🛠️ Built With
 - **Python** & **Tkinter**
-- **Gemini 3.0/2.5/Flash**
+- **Gemini 3.1/3.0/2.5** (Powered by Google GenAI)
 - **pywinstyles** for native Windows glass effects
 - **mss** for ultra-fast screen capture
 - **pygments** for code syntax highlighting in chat
