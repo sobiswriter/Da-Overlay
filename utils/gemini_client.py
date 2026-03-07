@@ -40,14 +40,26 @@ def get_gemini_response_stream(api_key, conversation_history, model_name="gemini
         try:
             with open(image_path, "rb") as image_file:
                 image_data = base64.b64encode(image_file.read()).decode('utf-8')
+            
+            # Robustly attach the image to the most recent user message.
+            image_attached = False
             for message in reversed(request_history):
-                if message['role'] == 'user':
-                    message['parts'].append({"inline_data": {"mime_type": "image/png", "data": image_data}})
+                if message.get('role') == 'user':
+                    if 'parts' not in message:
+                        message['parts'] = []
+                    message['parts'].append({"inlineData": {"mimeType": "image/png", "data": image_data}})
+                    image_attached = True
                     break
+                    
+            # If no user message exists in history yet, create one specifically for the image
+            if not image_attached:
+                request_history.append({
+                    "role": "user",
+                    "parts": [{"text": "Please analyze this image."}, {"inlineData": {"mimeType": "image/png", "data": image_data}}]
+                })
         except Exception as e:
             yield f"Error processing image: {e}"
             return
-            
     # --- THE CRITICAL FIX FOR CONTEXT PRIORITY ---
     # We will now combine the persona and the active context into a single, smart instruction.
     
