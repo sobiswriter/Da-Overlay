@@ -872,6 +872,8 @@ class OverlayApp:
                     if user_prompt_msg.get("role") == "user" and user_prompt_msg["parts"][0]["text"].startswith("(System Observation)"):
                         self.conversation_history.pop(-2)
                 ai_message_data["parts"][0]["text"] = self.streamed_text_buffer
+                # Render full markdown after streaming finishes
+                bubble.set_text(self.streamed_text_buffer, is_final=True)
                 if self.streamed_text_buffer and not self.streamed_text_buffer.lower().startswith("error"):
                     bubble.add_copy_button()
                 self.scroll_to_bottom()
@@ -895,7 +897,8 @@ class OverlayApp:
         """Recursively adds one letter at a time, then calls the on_finish_callback."""
         if index < len(text):
             self.streamed_text_buffer += text[index]
-            bubble.set_text(self.streamed_text_buffer)
+            # Defer markdown rendering until stream is totally complete to prevent lag
+            bubble.set_text(self.streamed_text_buffer, is_final=False)
             self.root.after(1, self._animate_letter, bubble, text, index + 1, on_finish_callback)
         else:
             # This chunk is done, call the callback to start processing the next one
