@@ -427,6 +427,12 @@ class OverlayApp:
                  bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w")
         self.preset_frame = tk.Frame(left_col, bg=self.C_SIDEBAR)
         self.preset_frame.pack(fill="x", pady=5)
+        
+        # Configure the 3 columns to expand equally and have uniform width
+        self.preset_frame.grid_columnconfigure(0, weight=1, uniform="preset_cols")
+        self.preset_frame.grid_columnconfigure(1, weight=1, uniform="preset_cols")
+        self.preset_frame.grid_columnconfigure(2, weight=1, uniform="preset_cols")
+
         for i, key in enumerate(PERSONA_PRESETS):
             btn = tk.Button(self.preset_frame, text=key, font=(self.font_family, 8),
                             command=lambda p=key: self._set_persona(p), 
@@ -439,7 +445,7 @@ class OverlayApp:
 
         tk.Label(left_col, text="Custom Persona Instructions:", font=(self.font_family, 10, 'bold'), 
                  bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY).pack(anchor="w", pady=(10, 0))
-        self.persona_text = tk.Text(left_col, height=3, font=(self.font_family, 9), 
+        self.persona_text = tk.Text(left_col, height=6, font=(self.font_family, 9), 
                                    relief="flat", bg=self.C_INPUT_BG, fg=self.C_TEXT_PRIMARY, 
                                    insertbackground=self.C_TEXT_PRIMARY, padx=10, pady=10)
         self.persona_text.pack(fill="x", pady=5)
