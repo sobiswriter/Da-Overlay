@@ -29,6 +29,7 @@ class HotkeyManager:
         # App Controls
         self._add_hotkey_safely('alt+0', self.app.cycle_capture_mode)
         self._add_hotkey_safely('alt+5', self.app.toggle_context_sharing)
+        self._add_hotkey_safely('alt+7', self.app.toggle_time_sharing)
         
         # Original Hotkey to Show/Hide
         # We can keep the old one or use your new suggestion. Let's use yours!

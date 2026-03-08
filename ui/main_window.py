@@ -12,6 +12,7 @@ import sys
 import pywinstyles
 import copy
 import queue
+from datetime import datetime
 from utils.theme_manager import ThemeProvider
 from ui.placeholder_entry import PlaceholderEntry
 from utils.context_manager import get_active_window_info
@@ -90,6 +91,7 @@ class OverlayApp:
         self.current_persona = ""
         self.settings_visible = False # State for the collapsible panel
         self.share_context = tk.BooleanVar(value=True) # On by default
+        self.share_time = tk.BooleanVar(value=True) # NEW: Sync Date/Time
         self.grounding_enabled = tk.BooleanVar(value=True) # NEW: Google Search Grounding
         self.thinking_animation_id = None # To control the "thinking" animation
         self.autopilot_enabled = tk.BooleanVar(value=False) # Off by default
@@ -205,6 +207,7 @@ class OverlayApp:
             ("📷", self.cycle_capture_mode, "Capture Mode"),
             ("🤖", self._toggle_autopilot_ui, "Autopilot"),
             ("🔗", self.toggle_context_sharing, "Share Context"),
+            ("🕒", self.toggle_time_sharing, "Share Date/Time"),
             ("🌍", self.toggle_grounding, "Google Grounding"),
             ("💾", self.save_chat, "Save Chat"),
             ("📂", self.load_chat, "Load Chat"),
@@ -443,6 +446,12 @@ class OverlayApp:
                                              font=(self.font_family, 9))
         self.share_ctx_check.pack(side="left", padx=(0, 15))
 
+        self.share_time_check = tk.Checkbutton(toggles_frame, text="Sync Date/Time", variable=self.share_time,
+                                             bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY, selectcolor=self.C_SIDEBAR,
+                                             activebackground=self.C_SIDEBAR, activeforeground=self.C_ACCENT,
+                                             font=(self.font_family, 9))
+        self.share_time_check.pack(side="left", padx=(0, 15))
+
         self.grounding_check = tk.Checkbutton(toggles_frame, text="Google Grounding", variable=self.grounding_enabled,
                                              bg=self.C_SIDEBAR, fg=self.C_TEXT_PRIMARY, selectcolor=self.C_SIDEBAR,
                                              activebackground=self.C_SIDEBAR, activeforeground=self.C_ACCENT,
@@ -458,7 +467,8 @@ class OverlayApp:
         shortcuts_list = [
             ("Alt + X", "Show/Hide UI"), ("Alt + A", "Focus Chat"),
             ("Alt + 0", "Capture Mode"), ("Alt + D", "Themes"),
-            ("Alt + 5", "Context Sync"), ("Alt + W/S", "Opacity")
+            ("Alt + 5", "Context Sync"), ("Alt + 7", "Time Sync"),
+            ("Alt + W/S", "Opacity")
         ]
         sc_frame = tk.Frame(right_col, bg=self.C_SIDEBAR)
         sc_frame.pack(fill="x", pady=(0, 15))
@@ -557,6 +567,7 @@ class OverlayApp:
                 self.current_model.set(settings.get("model", "gemini-3-flash-preview"))
                 self.current_persona = settings.get("persona", tars_persona)
                 self.share_context.set(settings.get("share_context", True))
+                self.share_time.set(settings.get("share_time", True))
                 self.grounding_enabled.set(settings.get("grounding_enabled", True))
                 
                 # Robust API Key Loading: Favor file but fallback to .env
@@ -589,6 +600,7 @@ class OverlayApp:
             self.current_model.set("gemini-3-flash-preview")
             self.current_persona = tars_persona
             self.share_context.set(True)
+            self.share_time.set(True)
             self.grounding_enabled.set(True)
             self.autopilot_intervals = default_intervals
             self.autopilot_cooldown_seconds = default_cooldown
@@ -615,6 +627,7 @@ class OverlayApp:
             "model": self.current_model.get(),
             "persona": self.current_persona,
             "share_context": self.share_context.get(),
+            "share_time": self.share_time.get(),
             "grounding_enabled": self.grounding_enabled.get(),
             "api_key": self.api_key_var.get(), # Persist the API key
             "autopilot_intervals": self.autopilot_intervals,
@@ -841,6 +854,7 @@ class OverlayApp:
 
         def stream_worker():
             """Fetches response chunks from the API and puts them in the queue."""
+            active_datetime = datetime.now().strftime("%Y-%m-%d %I:%M %p") if self.share_time.get() else None
             response_stream = gemini_client.get_gemini_response_stream(
                 api_key_to_use, 
                 history_for_api, 
@@ -848,7 +862,8 @@ class OverlayApp:
                 self.current_persona, 
                 image_path, 
                 active_context,
-                grounding_enabled=self.grounding_enabled.get()
+                grounding_enabled=self.grounding_enabled.get(),
+                active_datetime=active_datetime
             )
             for chunk in response_stream:
                 self.chunk_queue.put(chunk)
@@ -1243,6 +1258,13 @@ class OverlayApp:
         self.share_context.set(new_state)
         self._save_settings() # Save the change immediately
         self.show_feedback(f"Context Sync: {'ON' if new_state else 'OFF'}")
+
+    def toggle_time_sharing(self):
+        """Toggles the 'share_time' setting and saves it."""
+        new_state = not self.share_time.get()
+        self.share_time.set(new_state)
+        self._save_settings() # Save the change immediately
+        self.show_feedback(f"Time Sync: {'ON' if new_state else 'OFF'}")
 
     def toggle_grounding(self):
         """Toggles the 'grounding_enabled' setting and saves it."""

@@ -5,9 +5,9 @@ import copy
 import json
 import re
 
-def get_gemini_response_stream(api_key, conversation_history, model_name="gemini-3-flash-preview", persona_text="You are a helpful AI.", image_path=None, active_context=None, grounding_enabled=False):
+def get_gemini_response_stream(api_key, conversation_history, model_name="gemini-3-flash-preview", persona_text="You are a helpful AI.", image_path=None, active_context=None, grounding_enabled=False, active_datetime=None):
     """
-    Sends the conversation history, an optional image, and active window context
+    Sends the conversation history, an optional image, active window context, and datetime
     to a specified Gemini model and yields the text chunks from the streaming response.
     """
     api_key = api_key.strip()
@@ -73,14 +73,16 @@ def get_gemini_response_stream(api_key, conversation_history, model_name="gemini
         full_persona = (
             f"Your base persona is: '{persona_text}'.\n\n"
             "INSTRUCTIONS: Your primary focus is the user's conversation history, continue the conversation. If there is no history then start a new conversation, use the 'Active Window Context' and screenshot to understand what the user is doing and proactively mention it to make the conversation more relevant. Don't mention about the 'Active Window itself' or that you're an AI model, make your responses sound as natural and consice unless user demands.\n"
-            f"* Active Window Context: {active_context}"
+            f"* Active Window Context: {active_context}\n"
+            f"* Current Date and Time: {active_datetime}"
         )
     else:
         # This is your existing, excellent prompt for normal conversation!
         full_persona = (
             f"{persona_text}\n\n---\n"
             "INSTRUCTIONS: Your primary focus is the user's question and conversation history. Use the 'Active Window Context' to understand what the user is doing and proactively mention it to make the conversation more relevant, especially if the user's message is a simple greeting or a question without much context. Don't mention about the 'Active Window itself' though, make your responses sound natural. Don't mention you're an AI model and give structed responses. Keep your responses relevant to the user's needs.\n"
-            f"* Active Window Context: {active_context}"
+            f"* Active Window Context: {active_context}\n"
+            f"* Current Date and Time: {active_datetime}"
         )
 
 
