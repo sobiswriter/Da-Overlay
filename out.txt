@@ -1,0 +1,32 @@
+Status: 200
+Response: {
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Hey there! Not much on my end, just hanging",
+            "thoughtSignature": "EuUHCuIHAb4+9vs5eKnOkztkLlXYYsDsI41/TB8o+qslyanmqcCEVLnHA6uY6RjMQEIkBTRGzwoTqh+dDoeTHFdtG9/Sk18Xmt+MLKk+y52/ahik9P3tyFhz2Z2MqKhO+0FeVf7+xX1S5ETrL6IHfajYTcRgHMDffasguPsUmFQMznvyse/L9opj+p067Q1ZYo/HnE6DFplIPF7Jld0edx1+pqo/Q2XcQ4tCeSuCgzAuW5RghgY5djgJMlnI0M23KgwIe6h0lH/OridyQlfTdzWu52+5CEPTdHI/yuCWyWBeUgEGBGUrFLx+3YMBhhB/DONuWlHnwDPL/g0w5FBl2w8N/AmhUfQjA4BtdNBgLDAITZ+8XCq2ryWIc9b4oKtn0CRDAG7t6Ub11IdB7hg9bEJgdpUZ/hLrdK6bK4G3Z47f9t2MW47MgMfMoJ6POPnv27cKDVF5l25XSt/EU5IoawIPCNRJw5189pzSfPkgVXy0wedZCd9JyQkSw1/BRvF0artmkdI+NcJDy+a1d++GsfpHRm+jweMQNPLRoOl8Yl7sL2GzE6cBayw8bZx/HuHJRsi/vbLYpdpisL2RyQZOe2dDdbpuQyS5/XgvZApikGE5/U7mKlEs8wKHm8XuLpyFJlDvOPkXokWWD8I3NN8Ty2d6Glf0/OBbAV/JIJ8lspNxAUDCBK3m8cufCjEOqS+yDBxL4MIhCWq9Bhg8wmy2TUtKCBoR8y8XaCQHfDDd1/yTXbGCaMMJaekNP1feawsF7EJoOlXwnVU9P8AlTKvwhbHCjySzRGxea9rTiKWlNckfDX2UKdcV5PsGFcLLcEfDTWBVHNgI2ravO9ZRPaYWoXfmnMB7CuJ4wEr5chjeClxynjQxdKUCDrKqEXp4cDAde+Qn7y7mvmNTfN78bGO7Jvt00goy2gPZbBNsrkRUmWTR4vJ6BfE+XZeB1c0S5EEkdXMIW96t6sEzDXwQvbURATeX412X4FYjVIDQpr7Ydgc4QzAIKrxOn1ctITxMei73ONHnumymlXHkJbk4SyVeTx3kiAkVdP5XY9hscjcgqX956PciyqnAGUNFn6jSGd63LxkQT0eoaux6ex+6UNqvvT5QkV5uaRDuWrfx5INZiFTwI36z/lu07k7S8DoGb+X56iFpSsU7RQZNar6to0R0U1vRslg4uIe8DsZhiZIJrAelBEjQnE/ZQBp00EbSl74jnP/QxHTydY07FZwKIfWIpUzNxHc6HdoJE61jVrYY7+4YdHjoU2Di3dK1KnvqslkC2urU1BxTBhjYfWJ9BdxETpRQ1URaikYKDKQa5ri+oXcob05/CeK0fg=="
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "MAX_TOKENS",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 105,
+    "candidatesTokenCount": 11,
+    "totalTokenCount": 357,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 105
+      }
+    ],
+    "thoughtsTokenCount": 241
+  },
+  "modelVersion": "gemini-3-flash-preview",
+  "responseId": "j5quadbpFq7M4-EPwIKf6Ak"
+}

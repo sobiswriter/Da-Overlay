@@ -739,8 +739,30 @@ class OverlayApp:
             if not all(isinstance(item, dict) and 'role' in item and 'parts' in item for item in loaded_history):
                 raise ValueError("Invalid chat file format. Each message must be a dictionary with 'role' and 'parts'.")
 
+            # --- MIGRATION & GHOST MESSAGE SCRUBBING ---
+            GHOST_PREFIXES = (
+                "Capture mode:", "Date/Time Sharing", "Google Grounding", 
+                "Autopilot Enabled", "Autopilot Disabled", "UI Refreshed", 
+                "Chat loaded", "Generating memory", "Memory collapsed", 
+                "Failed to", "Memory saved", "Chat is empty", "Save cancelled",
+                "UI Refreshed"
+            )
+            
+            cleaned_history = []
+            for msg in loaded_history:
+                if msg.get('role') == 'system':
+                    text_content = msg.get('parts', [{}])[0].get('text', '')
+                    # If it's a known Ghost UI message, we drop it safely
+                    if any(text_content.startswith(p) for p in GHOST_PREFIXES):
+                        continue
+                    # Otherwise, it is an actual user message from an older version of the app
+                    # mistakenly saved as a system message. We migrate it to a 'user' role!
+                    msg['role'] = 'user'
+                
+                cleaned_history.append(msg)
+
             self.clear_chat(feedback=False)
-            self.conversation_history = loaded_history
+            self.conversation_history = cleaned_history
             self.rebuild_chat_display()
             self.show_feedback("Chat loaded successfully!")
         except (IOError, OSError) as e:
@@ -779,7 +801,8 @@ class OverlayApp:
 
         # 2. Create the new feedback bubble
         # We pass "system" as the role to get the right styling
-        self.last_feedback_bubble = self.show_message(message, "system")
+        # NEW: Ensure temporary feedbacks never get saved to conversational history!
+        self.last_feedback_bubble = self.show_message(message, "system", save_to_history=False)
 
         # 3. Schedule the new bubble to disappear after 2 seconds (3000ms)
         self.feedback_timer_id = self.root.after(2000, self._clear_feedback_bubble)
@@ -939,12 +962,12 @@ class OverlayApp:
 
     def scroll_to_bottom(self): self.chat_canvas.update_idletasks(); self.chat_canvas.yview_moveto(1.0)
     
-    def show_message(self, message_data, role=None, is_rebuilding=False):
+    def show_message(self, message_data, role=None, is_rebuilding=False, save_to_history=True):
         """Displays a message bubble. Now handles both raw strings and data dicts."""
         if isinstance(message_data, str):
             message_data = {"role": role or "system", "parts": [{"text": message_data}]}
         
-        if not is_rebuilding:
+        if not is_rebuilding and save_to_history:
             self.conversation_history.append(message_data)
         
         # Create and add the bubble
@@ -1217,7 +1240,7 @@ class OverlayApp:
         user_prompt = self.user_input.get().strip()
         if not user_prompt: return
         
-        self.show_message(user_prompt)
+        self.show_message(user_prompt, "user")
         self.user_input.delete(0, tk.END)
         self.root.after(10, self._start_interaction_flow)
 
@@ -1459,7 +1482,7 @@ class OverlayApp:
         root_y = self.root.winfo_y()
         root_w = self.root.winfo_width()
         root_h = self.root.winfo_height()
-        dialog_w = 380
+        dialog_w = 460
         dialog_h = 110
         pos_x = root_x + (root_w // 2) - (dialog_w // 2)
         pos_y = root_y + (root_h // 2) - (dialog_h // 2)
@@ -1470,6 +1493,11 @@ class OverlayApp:
         def on_save():
             nonlocal result
             result = True
+            dialog.destroy()
+
+        def on_save_memory():
+            nonlocal result
+            result = "memory"
             dialog.destroy()
 
         def on_close():
@@ -1492,7 +1520,7 @@ class OverlayApp:
         # Simple message label
         message_label = tk.Label(
             main_frame,
-            text="Do you want to save your chat session before quitting?",
+            text="Do you want to save your chat session or memory before quitting?",
             font=("Segoe UI", 10),
             bg=dialog.cget('bg'),
             justify="left"
@@ -1508,14 +1536,17 @@ class OverlayApp:
         tk.Frame(button_frame, bg=dialog.cget('bg')).pack(side="left", expand=True)
 
         # Use standard tk.Button to avoid custom ttk styling
-        save_button = tk.Button(button_frame, text="Save Chat", command=on_save, width=12, default="active")
+        save_button = tk.Button(button_frame, text="Save Chat", command=on_save, width=10, default="active")
         save_button.pack(side="left", padx=5)
         save_button.focus_set()
 
-        dont_save_button = tk.Button(button_frame, text="Don't Save", command=on_close, width=12)
+        save_mem_button = tk.Button(button_frame, text="Save Memory", command=on_save_memory, width=12)
+        save_mem_button.pack(side="left", padx=5)
+
+        dont_save_button = tk.Button(button_frame, text="Don't Save", command=on_close, width=10)
         dont_save_button.pack(side="left", padx=5)
 
-        cancel_button = tk.Button(button_frame, text="Cancel", command=on_cancel, width=12)
+        cancel_button = tk.Button(button_frame, text="Cancel", command=on_cancel, width=10)
         cancel_button.pack(side="left", padx=(5, 0))
 
         # Bind enter and escape
@@ -1539,6 +1570,9 @@ class OverlayApp:
                 self.root.destroy()
             # If the user cancels the save dialog, we do *not* quit.
 
+        elif user_choice == "memory": # Save Memory
+            self._save_memory_on_exit()
+
         elif user_choice is False: # Don't Save
             # The user doesn't want to save, so just quit.
             self.root.destroy()
@@ -1546,6 +1580,41 @@ class OverlayApp:
         # else: # Cancel (user_choice is None)
             # The user cancelled the quit operation, so do nothing.
             return
+
+    def _save_memory_on_exit(self):
+        """Generates memory dynamically before shutting down the main app root."""
+        if not self.conversation_history:
+            self.root.destroy()
+            return
+            
+        def _generate():
+            memory_text = gemini_client.generate_memory_blob(
+                self.api_key, 
+                self.conversation_history, 
+                self.current_model.get()
+            )
+            self.root.after(0, lambda: _prompt_save(memory_text))
+
+        def _prompt_save(memory_text):
+            if memory_text.startswith("Error"):
+                messagebox.showerror("Memory Error", memory_text)
+            else:
+                filepath = filedialog.asksaveasfilename(
+                    defaultextension=".txt",
+                    filetypes=[("Text Files (Memory)", "*.txt"), ("All Files", "*.*")],
+                    title="Save Memory Diary"
+                )
+                if filepath:
+                    try:
+                        with open(filepath, 'w', encoding='utf-8') as f:
+                            f.write(memory_text)
+                    except Exception as e:
+                        messagebox.showerror("Save Error", f"Failed to save file:\n{e}")
+            self.root.destroy()
+
+        # Display status feedback and spin up thread explicitly
+        self.show_feedback("Saving memory before closing, please wait...")
+        threading.Thread(target=_generate, daemon=True).start()
 
     def _autopilot_worker(self):
         """

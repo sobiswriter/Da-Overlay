@@ -23,8 +23,17 @@ def generate_memory_blob(api_key, conversation_history, model_name="gemini-3-fla
     if not isinstance(conversation_history, list) or not conversation_history:
         return ""
         
-    request_history = copy.deepcopy(conversation_history)
-    
+    # Flatten the conversation into a single text block
+    flat_history = "--- PAST CONVERSATION LOG ---\n\n"
+    for msg in conversation_history:
+        role = "User" if msg.get("role") == "user" else "Persona (You)"
+        content_parts = msg.get("parts", [])
+        if content_parts:
+            text = content_parts[0].get("text", "")
+            flat_history += f"[{role}]: {text}\n\n"
+            
+    flat_history += "--- END OF LOG ---\n\nPlease write your 100-word diary entry based on the entirely of the log above."
+
     system_instruction = (
         "You are the persona currently engaged in this conversation. Write a diary entry logging "
         "everything you did and discussed with the user. Write closely from your own perspective, "
@@ -33,12 +42,12 @@ def generate_memory_blob(api_key, conversation_history, model_name="gemini-3-fla
     )
     
     payload = {
-        "contents": request_history,
+        "contents": [{"role": "user", "parts": [{"text": flat_history}]}],
         "system_instruction": {
             "parts": [{"text": system_instruction}]
         },
         "generationConfig": {
-            "maxOutputTokens": 256,
+            "maxOutputTokens": 2048,
             "temperature": 0.3
         }
     }
@@ -48,7 +57,14 @@ def generate_memory_blob(api_key, conversation_history, model_name="gemini-3-fla
         response.raise_for_status()
         data = response.json()
         if 'candidates' in data and data['candidates']:
-            return data['candidates'][0]['content']['parts'][0]['text'].strip()
+            parts = data['candidates'][0].get('content', {}).get('parts', [])
+            if parts:
+                text = parts[0].get('text', '').strip()
+                if not text:
+                    return "Error: Blank text returned from the model."
+                return text
+            else:
+                return "Error: No parts returned in the response content."
         else:
             return "Error: No summary generated."
     except Exception as e:
