@@ -217,7 +217,9 @@ class OverlayApp:
             ("🕒", self.toggle_time_sharing, "Share Date/Time"),
             ("🌍", self.toggle_grounding, "Google Grounding"),
             ("💾", self.save_chat, "Save Chat"),
+            ("📝", self.save_memory, "Save Memory"),
             ("📂", self.load_chat, "Load Chat"),
+            ("🧠", self.collapse_to_memory, "Collapse to Memory"),
             ("🔄", self.refresh_ui, "Refresh UI"),
             ("🧹", self.clear_chat, "Clear Chat")
         ]
@@ -690,11 +692,43 @@ class OverlayApp:
     # PRESERVED: Your load_chat method
     def load_chat(self):
         filepath = filedialog.askopenfilename(
-            filetypes=[("JSON Chat Files", "*.json"), ("All Files", "*.* aristocracy")],
-            title="Load Chat Session"
+            filetypes=[("JSON Chat Files", "*.json"), ("Text Files (Memory)", "*.txt"), ("All Files", "*.*")],
+            title="Load Chat Session or Memory"
         )
         if not filepath:
             return
+            
+        if filepath.endswith(".txt"):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    memory_text = f.read().strip()
+                    
+                if not memory_text:
+                    messagebox.showerror("Load Error", "The selected memory file is empty.")
+                    return
+                    
+                self.clear_chat(feedback=False)
+                
+                # Inject memory as a context message
+                memory_message = {
+                    "role": "user",
+                    "parts": [{"text": f"(System Memory of previous conversation: {memory_text})"}]
+                }
+                ack_message = {
+                    "role": "model",
+                    "parts": [{"text": "Understood. The memory has been loaded. Let's start a fresh chat."}]
+                }
+                
+                self.conversation_history.append(memory_message)
+                self.conversation_history.append(ack_message)
+                self.rebuild_chat_display()
+                self.show_feedback("Memory loaded successfully!")
+                return
+            except Exception as e:
+                messagebox.showerror("Load Error", f"Failed to load memory file:\n{e}")
+                return
+
+        # JSON loader
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 loaded_history = json.load(f)
@@ -758,6 +792,90 @@ class OverlayApp:
         """Manual trigger to rebuild the UI if it gets stuck or blank."""
         self.rebuild_chat_display()
         self.show_feedback("UI Refreshed")
+
+    def collapse_to_memory(self):
+        if not self.conversation_history:
+            self.show_feedback("Chat is empty.")
+            return
+
+        def _generate():
+            self.show_feedback("Generating memory blob...")
+            # Run in a thread so it doesn't freeze the UI
+            memory_text = gemini_client.generate_memory_blob(
+                self.api_key, 
+                self.conversation_history, 
+                self.current_model.get()
+            )
+            # Switch back to main thread
+            self.root.after(0, lambda: _apply_memory(memory_text))
+
+        def _apply_memory(memory_text):
+            if memory_text.startswith("Error"):
+                messagebox.showerror("Memory Error", memory_text)
+                self.show_feedback("Failed to generate memory.")
+                return
+
+            self.clear_chat(feedback=False)
+            
+            # Inject memory as a context message
+            memory_message = {
+                "role": "user",
+                "parts": [{"text": f"(System Memory of previous conversation: {memory_text})"}]
+            }
+            # Add an AI acknowledgment to balance the turns
+            ack_message = {
+                "role": "model",
+                "parts": [{"text": "Understood. The memory of our previous conversation has been logged. Let's start a fresh chat."}]
+            }
+            
+            self.conversation_history.append(memory_message)
+            self.conversation_history.append(ack_message)
+            self.rebuild_chat_display()
+            self.show_feedback("Memory collapsed & new chat started!")
+
+        # Run generator thread
+        threading.Thread(target=_generate, daemon=True).start()
+
+    def save_memory(self):
+        if not self.conversation_history:
+            self.show_feedback("Chat is empty.")
+            return
+
+        def _generate():
+            self.show_feedback("Generating memory diary...")
+            # Run in a thread so it doesn't freeze the UI
+            memory_text = gemini_client.generate_memory_blob(
+                self.api_key, 
+                self.conversation_history, 
+                self.current_model.get()
+            )
+            # Switch back to main thread
+            self.root.after(0, lambda: _prompt_save(memory_text))
+
+        def _prompt_save(memory_text):
+            if memory_text.startswith("Error"):
+                messagebox.showerror("Memory Error", memory_text)
+                self.show_feedback("Failed to generate memory.")
+                return
+
+            filepath = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text Files (Memory)", "*.txt"), ("All Files", "*.*")],
+                title="Save Memory Diary"
+            )
+            if not filepath:
+                self.show_feedback("Save cancelled.")
+                return 
+
+            try:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(memory_text)
+                self.show_feedback("Memory saved successfully!")
+            except Exception as e:
+                messagebox.showerror("Save Error", f"Failed to save file:\n{e}")
+
+        # Run generator thread
+        threading.Thread(target=_generate, daemon=True).start()
 
     # PRESERVED: Your clear_chat method
     def clear_chat(self, feedback=True):
@@ -1211,7 +1329,7 @@ class OverlayApp:
                 continue
 
     def rebuild_chat_display(self):
-        """Clears and re-adds all message bubbles from history."""
+        """Clears and re-adds all message bubbles from history asynchronously."""
         # 1. Clear existing widgets
         for widget in self.chat_frame.winfo_children():
             widget.destroy()
@@ -1219,20 +1337,33 @@ class OverlayApp:
         # 2. Force a layout update to ensure frames are ready
         self.root.update_idletasks()
         
-        # 3. Re-add messages
+        # 3. Re-add messages asynchronously in chunks
         history = list(self.conversation_history) # Work with a shallow copy
-        for msg in history:
-            self.show_message(msg, is_rebuilding=True)
         
-        # 4. Final scroll update
-        self._on_bubble_resize()
+        def _render_chunk(index, chunk_size=5):
+            if index >= len(history):
+                # 4. Final scroll update when done
+                self._on_bubble_resize()
+                return
 
-        # ---- HOTKEY ACTIONS ----
+            end_index = min(index + chunk_size, len(history))
+            for i in range(index, end_index):
+                self.show_message(history[i], is_rebuilding=True)
+                
+            # Schedule the next chunk
+            self.root.after(20, lambda: _render_chunk(end_index, chunk_size))
+
+        # Start the rendering loop
+        if history:
+            _render_chunk(0)
+        else:
+            self._on_bubble_resize()
+
+    # ---- HOTKEY ACTIONS ----
 
     def _move_window(self, dx=0, dy=0):
         """Moves the window by a given delta x and delta y."""
         new_x = self.root.winfo_x() + dx
-        new_y = self.root.winfo_y() + dy
         self.root.geometry(f"+{new_x}+{new_y}")
 
     def increase_opacity(self):

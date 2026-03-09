@@ -5,6 +5,55 @@ import copy
 import json
 import re
 
+def generate_memory_blob(api_key, conversation_history, model_name="gemini-3-flash-preview"):
+    """
+    Summarizes a long conversation history into a concise memory blob.
+    Returns the summarized text.
+    """
+    api_key = api_key.strip()
+    model_id = model_name.strip()
+    if model_id.startswith("models/"):
+        model_id = model_id.replace("models/", "", 1)
+        
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={api_key}"
+    headers = {'Content-Type': 'application/json'}
+    
+    if not api_key:
+        return "Error: API key is missing."
+    if not isinstance(conversation_history, list) or not conversation_history:
+        return ""
+        
+    request_history = copy.deepcopy(conversation_history)
+    
+    system_instruction = (
+        "You are the persona currently engaged in this conversation. Write a diary entry logging "
+        "everything you did and discussed with the user. Write closely from your own perspective, "
+        "maintaining your unique persona and emotional state. Keep it around 100 words. "
+        "This will act as your long-term memory for the next conversation."
+    )
+    
+    payload = {
+        "contents": request_history,
+        "system_instruction": {
+            "parts": [{"text": system_instruction}]
+        },
+        "generationConfig": {
+            "maxOutputTokens": 256,
+            "temperature": 0.3
+        }
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
+        data = response.json()
+        if 'candidates' in data and data['candidates']:
+            return data['candidates'][0]['content']['parts'][0]['text'].strip()
+        else:
+            return "Error: No summary generated."
+    except Exception as e:
+        return f"Error generating memory: {e}"
+
 def get_gemini_response_stream(api_key, conversation_history, model_name="gemini-3-flash-preview", persona_text="You are a helpful AI.", image_path=None, active_context=None, grounding_enabled=False, active_datetime=None):
     """
     Sends the conversation history, an optional image, active window context, and datetime
