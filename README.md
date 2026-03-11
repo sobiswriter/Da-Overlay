@@ -9,11 +9,14 @@
 - **🎨 Glassmorphic UI**: A stunning, transparent interface using Mica/Aero effects.
 - **👁️ Context-Aware Highlighting**: Anna "sees" your active window and selected screen regions.
 - **🌍 Google Search Grounding**: Connects Anna directly to real-time web search for up-to-date facts and citations.
+- **🧠 Long-Term Memory Diaries**: Summarize long conversations into 100-word persona-driven diary entries (`.txt` files) to persist context seamlessly across new sessions.
+- **⚡ Async Chat Loading**: Instantly load massive `.json` chat histories without UI freezing via chunked background rendering.
+- **🚪 Smart Exit Dialog**: Never lose context; the app proactively prompts you to save your Chat or Memory before quitting.
 - **📝 Native Markdown Rendering**: Beautifully formats headers, bold/italic text, lists, and clickable hyperlinks directly in chat bubbles.
 - **🚀 Autopilot Engine**: Proactive AI suggests insights based on your activity (Configurable intervals).
 - **⚙️ Control Dashboard**: A professional 2-column settings panel for AI, VISUALS, and SHORTCUTS.
 - **🖱️ Intuitive Tooltips**: Helpful hover text explains sidebar actions instantly.
-- **🔄 UI Refresh**: Dedicated refresh button to ensure the interface stays responsive and clean.
+- **🔄 UI Controls**: Dedicated buttons to refresh UI and cleanly wipe chat logs.
 - **🎭 Multi-Persona**: Switch between various personalities including Anna, TARS, Holmes, and more.
 - **⌨️ Global Hotkeys**: Total control at your fingertips without ever leaving your current app.
 - **🌓 Dynamic Themes**: Beautifully crafted Light and Dark modes with instant switching.

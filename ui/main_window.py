@@ -228,7 +228,7 @@ class OverlayApp:
             btn = tk.Button(self.sidebar, text=icon, font=(self.font_family, 14),
                             command=cmd, bg=self.sidebar["bg"], fg=self.C_TEXT_SECONDARY,
                             activebackground=self.C_ACCENT, activeforeground="white",
-                            bd=0, relief="flat", padx=10, pady=15)
+                            bd=0, relief="flat", padx=10, pady=9)
             btn.pack(side="top", fill="x")
             try:
                 import pywinstyles
