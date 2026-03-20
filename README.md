@@ -32,7 +32,7 @@
 | **Toggle Theme** | `Alt + D` |
 | **Increase Opacity** | `Alt + W` |
 | **Decrease Opacity** | `Alt + S` |
-| **Move Window** | `Alt + Numpad (8, 4, 2, 6)` |
+| **Move Window** | `Alt + Arrow Keys` OR `Numpad (8, 4, 2, 6)` |
 
 ## 🚀 Getting Started
 

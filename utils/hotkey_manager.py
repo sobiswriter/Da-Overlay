@@ -21,10 +21,17 @@ class HotkeyManager:
         
         # Window Movement
         # We use lambdas to call the new, consolidated _move_window method.
+        # Numpad
         self._add_hotkey_safely('alt+8', lambda: self.app._move_window(dy=-30)) # Up
         self._add_hotkey_safely('alt+4', lambda: self.app._move_window(dx=-30)) # Left
         self._add_hotkey_safely('alt+2', lambda: self.app._move_window(dy=30))  # Down
         self._add_hotkey_safely('alt+6', lambda: self.app._move_window(dx=30))  # Right
+        
+        # Standard Arrow Keys
+        self._add_hotkey_safely('alt+up', lambda: self.app._move_window(dy=-30)) # Up
+        self._add_hotkey_safely('alt+left', lambda: self.app._move_window(dx=-30)) # Left
+        self._add_hotkey_safely('alt+down', lambda: self.app._move_window(dy=30))  # Down
+        self._add_hotkey_safely('alt+right', lambda: self.app._move_window(dx=30))  # Right
         
         # App Controls
         self._add_hotkey_safely('alt+0', self.app.cycle_capture_mode)

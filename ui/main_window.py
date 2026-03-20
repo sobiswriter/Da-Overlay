@@ -1387,6 +1387,7 @@ class OverlayApp:
     def _move_window(self, dx=0, dy=0):
         """Moves the window by a given delta x and delta y."""
         new_x = self.root.winfo_x() + dx
+        new_y = self.root.winfo_y() + dy
         self.root.geometry(f"+{new_x}+{new_y}")
 
     def increase_opacity(self):
