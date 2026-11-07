@@ -1,14 +1,12 @@
-# --- main.py ---
-import tkinter as tk
-from dotenv import load_dotenv
-
-# Import from the new structure
-from ui.main_window import OverlayApp
-from utils.hotkey_manager import setup_hotkey_listener
-
 if __name__ == "__main__":
-    load_dotenv()
-    root = tk.Tk()
-    app = OverlayApp(root)
-    setup_hotkey_listener(app)
-    root.mainloop()
+    try:
+        from desktop import run
+        run()
+    except Exception as error:
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("Cutex could not start", str(error) + "\n\nIf this is a dependency issue, run run.bat. Saved conversations are not changed.")
+        root.destroy()
+        raise

@@ -1,37 +1,21 @@
 @echo off
-echo ========================================
-echo   BUILDING OVERLAY CUTEX (ANNA)
-echo ========================================
+setlocal
+cd /d "%~dp0"
+if not exist ".venv\Scripts\python.exe" (
+    py -3 -m venv .venv
+    if errorlevel 1 goto failed
+)
+".venv\Scripts\python.exe" -m pip install -r requirements.txt pyinstaller
+if errorlevel 1 goto failed
+".venv\Scripts\python.exe" -B -m unittest discover -s tests -v
+if errorlevel 1 goto failed
+".venv\Scripts\python.exe" -m PyInstaller --noconfirm --distpath release --workpath build/cutex-v2 "Cutex Overlay.spec"
+if errorlevel 1 goto failed
 echo.
-echo [1/3] Updating dependencies...
-pip install -r requirements.txt --quiet
-pip install pyinstaller --quiet
-
-echo [2/3] Cleaning previous builds...
-if exist build rd /s /q build
-if exist dist rd /s /q dist
-
-echo [3/3] Running PyInstaller...
-if exist "Cutex Overlay.spec" (
-    echo [INFO] Building from spec file...
-    pyinstaller --clean "Cutex Overlay.spec"
-) else (
-    echo [INFO] Generating new build...
-    pyinstaller --noconsole --onefile --clean --name "Cutex Overlay" --icon="flower.ico" main.py
-)
-
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo [ERROR] PyInstaller failed with exit code %ERRORLEVEL%
-    pause
-    exit /b %ERRORLEVEL%
-)
-
-echo.
-echo ========================================
-echo   BUILD COMPLETE! Check 'dist' folder.
-echo ========================================
-if not exist dist (
-    echo [WARNING] 'dist' folder was not created as expected!
-)
+echo Ready: release\Cutex.exe
+echo Old builds, chats and settings have not been removed.
+exit /b 0
+:failed
+echo Build failed. See the error above. Existing builds are unchanged.
 pause
+exit /b 1

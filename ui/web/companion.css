@@ -1,0 +1,17 @@
+.companion-library-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:28px 0 14px}
+.saved-companions{display:flex;gap:10px;overflow-x:auto;padding:2px 0 24px;margin-bottom:10px}
+.saved-companion{display:flex;flex-shrink:0;align-items:center;border:1px solid var(--border);border-radius:12px;transition:border-color .18s,background .18s}
+.saved-companion.active{border-color:var(--accent);background:var(--surface)}
+.saved-companion>button:first-child{display:flex;gap:12px;align-items:center;text-align:left;padding:12px 16px;color:var(--text)}
+.saved-companion strong,.saved-companion small{display:block}.saved-companion strong{font-size:12px}.saved-companion small{font-size:9px;color:var(--muted);margin-top:5px}
+.companion-avatar{width:40px;height:40px;display:grid;place-items:center;flex-shrink:0}.companion-avatar svg{width:40px;height:40px;color:var(--accent)}
+.companion-avatar img,.avatar-preview img,.mini-orb img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.remove-companion{padding:8px;color:var(--muted);align-self:flex-start}.remove-companion svg{width:12px;height:12px}
+.avatar-editor{display:flex;align-items:center;gap:24px;padding:24px 0;margin-bottom:16px;border-block:1px solid var(--border)}
+.avatar-preview{width:80px;height:80px;flex-shrink:0}.avatar-preview svg{width:80px;height:80px;color:var(--accent)}
+.avatar-options{flex:1}.avatar-upload{display:inline-flex;cursor:pointer;margin-right:14px}.avatar-upload:has(+input:focus-visible){outline:2px solid var(--accent);outline-offset:4px}
+.persona-form label.avatar-upload{display:inline-flex;width:auto;gap:8px;margin:0 14px 0 0}
+.avatar-options .field-hint{margin:10px 0}.avatar-icons{display:flex;gap:8px}.avatar-icons button{font-size:20px;width:36px;height:36px;border-radius:50%;background:var(--surface);transition:transform .15s}
+.avatar-icons button:hover{transform:translateY(-3px)}
+@media(max-width:600px){.avatar-editor{gap:16px}.avatar-preview{width:56px;height:56px}.avatar-preview svg{width:56px;height:56px}.avatar-options .field-hint{font-size:9px}.avatar-upload{font-size:10px}.companion-library-heading .text-button{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.saved-companion,.avatar-icons button{transition:none}.avatar-icons button:hover{transform:none}}

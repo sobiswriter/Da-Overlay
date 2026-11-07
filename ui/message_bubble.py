@@ -6,57 +6,73 @@ import webbrowser
 import uuid
 
 class MessageBubble(tk.Frame):
-    """Professional, card-style message bubble using the active theme."""
+    """Professional, WhatsApp-style message bubble using the active theme."""
     def __init__(self, parent, message_data, app_instance, **kwargs):
-        super().__init__(parent, **kwargs)
+        # The true outer frame is transparent, acting as a full-width container row
+        super().__init__(parent, bg=app_instance.BG_COLOR, **kwargs)
         self.app_instance = app_instance
         self.message_data = message_data
         
         author = message_data.get("role", "system")
         text = message_data.get("parts", [{}])[0].get("text", "")
-        is_user = author == "user"
-        is_system = author == "system"
+        self.is_user = author == "user"
+        self.is_system = author == "system"
         
         # Deriving colors from ThemeProvider
         p = self.app_instance.theme_provider.get_palette()
         is_light = self.app_instance.current_theme.get() == "light"
         
-        self.bubble_bg = p["C_CARD"] if not is_user else p["C_ACCENT"]
-        self.text_fg = p["C_TEXT_PRIMARY"] if not is_user else "#FFFFFF"
-        self.author_fg = p["C_ACCENT"] if not is_user else ("#E0E0E0" if not is_light else "#F0F0F0")
+        self.bubble_bg = p["C_CARD"] if not self.is_user else p["C_ACCENT"]
+        self.text_fg = p["C_TEXT_PRIMARY"] if not self.is_user else "#FFFFFF"
+        self.author_fg = p["C_ACCENT"] if not self.is_user else ("#E0E0E0" if not is_light else "#F0F0F0")
         
-        if is_system:
+        if self.is_system:
             self.bubble_bg = p["C_BG"]
             self.text_fg = p["C_TEXT_SECONDARY"]
 
         # Add a subtle border in light mode for "card" definition
-        border_thickness = 1 if (is_light and not is_user) else 0
-        self.config(bg=self.bubble_bg, padx=12, pady=10, 
-                    highlightthickness=border_thickness, highlightbackground=p["C_BORDER"])
+        border_thickness = 1 if (is_light and not self.is_user) else 0
         
-        # Apply rounding to the bubble frame
+        # --- INNER BUBBLE FRAME ---
+        # This frame holds the actual visible bubble content and hugs it tightly
+        self.bubble_frame = tk.Frame(self, bg=self.bubble_bg, padx=12, pady=10, 
+                                     highlightthickness=border_thickness, highlightbackground=p["C_BORDER"])
+        
+        # Align WhatsApp style: User on Right, AI on Left. System messages in center or left.
+        if self.is_user:
+            self.bubble_frame.pack(side="right", anchor="e", padx=(60, 0))
+        elif self.is_system:
+            self.bubble_frame.pack(side="top", anchor="center", padx=30)
+        else:
+            self.bubble_frame.pack(side="left", anchor="w", padx=(0, 60))
+        
+        # Apply rounding to the inner bubble frame
         try:
             import pywinstyles
-            pywinstyles.apply_style(self, "rounded")
+            pywinstyles.apply_style(self.bubble_frame, "rounded")
         except: pass
         
         # --- Header ---
-        header_frame = tk.Frame(self, bg=self.bubble_bg)
+        header_frame = tk.Frame(self.bubble_frame, bg=self.bubble_bg)
         header_frame.pack(side="top", fill="x")
         
         # Author Label
-        author_txt = "YOU" if is_user else author.upper()
-        tk.Label(header_frame, text=author_txt, font=("Segoe UI", 9, "bold"), 
-                 bg=self.bubble_bg, fg=self.author_fg).pack(side="left")
+        author_txt = "YOU" if self.is_user else author.upper()
+        author_font = ("Segoe UI", 8, "bold") if self.is_user else ("Segoe UI", 9, "bold")
+        author_lbl = tk.Label(header_frame, text=author_txt, font=author_font, 
+                 bg=self.bubble_bg, fg=self.author_fg)
+        author_lbl.pack(side="right" if self.is_user else "left")
 
         # --- Content ---
-        self.text_frame = tk.Frame(self, bg=self.bubble_bg)
-        self.text_frame.pack(side="top", fill="x", expand=True, pady=(5, 0))
+        self.text_frame = tk.Frame(self.bubble_frame, bg=self.bubble_bg)
+        self.text_frame.pack(side="top", fill="x", expand=True, pady=(3, 0))
 
+        # Start with small width, it will grow dynamically in _adjust_size
+        start_width = 2 if not text else min(68, len(text))
         self.message_text = tk.Text(self.text_frame, font=("Segoe UI", 11), wrap=tk.WORD, 
                                    bg=self.bubble_bg, fg=self.text_fg, 
                                    relief="flat", bd=0, highlightthickness=0, 
-                                   state="disabled", height=1, width=1) # Width=1 allows expansion
+                                   state="disabled", height=1, width=start_width)
         self.message_text.pack(side="left", fill="both", expand=True)
         
         # Markdown Tags
@@ -77,6 +93,7 @@ class MessageBubble(tk.Frame):
         self.message_text.tag_configure("inline_code", font=("Consolas", 10), background=code_bg)
         
         self.scrollbar = ttk.Scrollbar(self.text_frame, command=self.message_text.yview)
+        # Scrollbar is packed dynamically in _adjust_size
         self.message_text.config(yscrollcommand=self.scrollbar.set)
         
         self.set_text(text, is_final=True)
@@ -87,7 +104,7 @@ class MessageBubble(tk.Frame):
         
         if not is_final:
             self.message_text.insert("1.0", text)
-            self._adjust_height()
+            self._adjust_size()
             self.message_text.config(state="disabled")
             return
         
@@ -97,6 +114,7 @@ class MessageBubble(tk.Frame):
         for line in lines:
             if line.strip().startswith("```"):
                 in_code = not in_code
+                self.message_text.insert(tk.END, line + "\n", "code_block" if not in_code else ())
                 continue
             
             if in_code:
@@ -108,9 +126,9 @@ class MessageBubble(tk.Frame):
         if self.message_text.get("end-2c", "end-1c") == "\n":
             self.message_text.delete("end-2c", "end-1c")
             
-        # Adjust Height
-        self.message_text.bind("<Configure>", lambda e: self._adjust_height())
-        self._adjust_height()
+        # Adjust Size
+        self.message_text.bind("<Configure>", lambda e: self._adjust_size())
+        self._adjust_size()
         self.message_text.config(state="disabled")
 
     def _parse_markdown_line(self, line):
@@ -183,21 +201,43 @@ class MessageBubble(tk.Frame):
         if post_text:
             self.message_text.insert(tk.END, post_text, base_tag if base_tag else ())
 
-    def _adjust_height(self):
-        """Dynamically adjusts the height of the text widget and enables scrolling if too tall."""
+    def _adjust_size(self):
+        """Dynamically adjusts both width and height of the text widget to wrap tightly."""
         self.message_text.update_idletasks()
+        content = self.message_text.get("1.0", "end-1c")
+        
+        # --- Width Calculation ---
+        lines = content.split("\n")
+        max_line_len = 1
+        for l in lines:
+            if len(l) > max_line_len:
+                max_line_len = len(l)
+                
+        # Cap the width at roughly 68 characters to simulate WhatsApp wrapping
+        target_width = min(68, max_line_len + 1)
+        if target_width < 4:
+            target_width = 4
+            
+        self.message_text.config(width=target_width)
+        
+        # --- Height Calculation ---
         try:
             d_lines = self.message_text.count("1.0", "end-1c", "displaylines")
             num_lines = (d_lines[0] if d_lines else 1) or 1
         except:
-            num_lines = int(self.message_text.index("end-1c").split('.')[0])
+            # Fallback if displaylines fails
+            num_lines = 0
+            for l in lines:
+                wraps = (len(l) // target_width) + 1 if target_width > 0 else 1
+                num_lines += wraps
             
-        content = self.message_text.get("1.0", "end")
         h1_count = content.count("\n# ") + (1 if content.startswith("# ") else 0)
         h2_count = content.count("\n## ") + (1 if content.startswith("## ") else 0)
         
         # Add extra height allowance for large markdown elements
-        target_height = int(num_lines + (h1_count * 1.5) + (h2_count * 1.0)) + 2
+        target_height = int(num_lines + (h1_count * 1.5) + (h2_count * 1.0))
+        if target_height < 1:
+            target_height = 1
             
         max_lines = 25
         if target_height > max_lines:
@@ -213,8 +253,9 @@ class MessageBubble(tk.Frame):
 
     def add_copy_button(self):
         text = self.message_data.get("parts", [{}])[0].get("text", "")
-        btn = tk.Button(self, text="COPY LOG", font=("Segoe UI", 8, "bold"),
+        btn = tk.Button(self.bubble_frame, text="COPY LOG", font=("Segoe UI", 7, "bold"),
                         bg=self.bubble_bg, fg=self.author_fg, relief="flat", bd=0,
                         activebackground=self.bubble_bg, activeforeground=self.text_fg,
                         command=lambda: self.app_instance.copy_to_clipboard(text))
-        btn.pack(side="bottom", anchor="e", pady=(5, 0))
+        # Align button correctly based on user side
+        btn.pack(side="bottom", anchor="e" if not self.is_user else "w", pady=(2, 0))

@@ -1,32 +1,37 @@
 # -*- mode: python ; coding: utf-8 -*-
+import platform
+import struct
+from pathlib import Path
+from PyInstaller.utils.hooks import copy_metadata
 
-block_cipher = None
+bundled_data = [('ui/web', 'ui/web')]
+for package in ('google-auth', 'sounddevice', 'cryptography', 'cffi', 'pyasn1', 'pyasn1-modules'):
+    bundled_data += copy_metadata(package)
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=bundled_data,
+    hiddenimports=['webview.platforms.edgechromium', 'webview.platforms.winforms', 'win32crypt', 'win32clipboard'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
 )
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+# Keep the microphone libraries for this Python architecture, including ASIO.
+audio_arch = 'arm64' if platform.machine().lower() in ('arm64', 'aarch64') else '64bit' if struct.calcsize('P') == 8 else '32bit'
+a.binaries = [item for item in a.binaries if 'portaudio-binaries' not in item[0] or Path(item[0]).name.startswith('libportaudio' + audio_arch)]
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.zipfiles,
     a.datas,
     [],
-    name='Cutex Overlay',
+    name='Cutex',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

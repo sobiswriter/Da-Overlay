@@ -1,0 +1,13 @@
+.voice-draft{display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:11px}
+.voice-draft>.voice-copy{flex:1}.voice-copy strong,.voice-copy small{display:block}.voice-copy small{color:var(--muted);font-size:9px;margin-top:4px}
+.voice-wave{display:flex;align-items:center;gap:3px;height:24px;color:var(--accent)}.voice-wave span{width:3px;height:calc(4px + var(--voice-level,0)*20px);border-radius:2px;background:currentColor;transition:height .14s}.voice-wave span:nth-child(2n){height:calc(9px + var(--voice-level,0)*12px)}
+.record-button.recording{color:var(--danger);background:var(--surface-hover)}.voice-draft.recording{border-color:var(--danger)}.voice-draft.recording .voice-wave{color:var(--danger)}
+.voice-badge{font-size:10px;color:var(--muted);display:inline-flex;gap:5px;align-items:center}.voice-badge svg{width:12px;height:12px}
+.cloud-fields{display:grid;gap:8px;padding:14px;border:1px solid var(--border);border-radius:10px;margin:12px 0}.cloud-fields label{margin:4px 0!important}.provider-select{width:100%;margin:8px 0 12px}.connection-test{margin:12px 0;display:flex;gap:10px;align-items:center}.connection-test small{color:var(--muted)}
+button:active:not(:disabled){transform:scale(.97)}.starter:hover,.memory-card:hover,.saved-companion:hover{transform:translateY(-2px)}.starter,.memory-card,.saved-companion{transition:transform .18s ease,border-color .18s ease,background .18s ease}
+@keyframes arrive{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes dialog-arrive{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes recording-pulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--danger) 15%,transparent)}}
+.view:not([hidden]){animation:arrive .22s ease-out}.voice-draft:not([hidden]),#toast:not([hidden]){animation:arrive .18s ease-out}dialog[open]{animation:dialog-arrive .2s ease-out}.record-button.recording{animation:recording-pulse 1.3s ease-in-out infinite}
+@media(max-width:600px){.send-tools{gap:3px}.voice-draft{padding:9px;gap:7px}.voice-copy small{font-size:8px}.voice-draft .secondary-button{padding:6px;font-size:9px}.composer-memory span{display:none}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}button:active:not(:disabled),.starter:hover,.memory-card:hover,.saved-companion:hover{transform:none}}

@@ -6,3 +6,6 @@ pygments
 keyboard
 pywin32
 psutil
+pywebview==6.2.1
+google-auth==2.62.1
+sounddevice==0.5.6

@@ -12,6 +12,9 @@ cutie.json
 # Build artifacts
 build/
 dist/
+release/
+output/
+.venv/
 *.spec
 !Cutex Overlay.spec
 
