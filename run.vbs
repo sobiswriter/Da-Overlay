@@ -1,3 +1,9 @@
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run chr(34) & "run.bat" & Chr(34), 0
+Set FileSystem = CreateObject("Scripting.FileSystemObject")
+WshShell.CurrentDirectory = FileSystem.GetParentFolderName(WScript.ScriptFullName)
+If FileSystem.FileExists(".venv\Scripts\pythonw.exe") Then
+    WshShell.Run """.venv\Scripts\pythonw.exe"" ""main.py""", 0, False
+Else
+    WshShell.Run """run.bat""", 1, False
+End If
 Set WshShell = Nothing

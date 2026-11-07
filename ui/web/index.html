@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'">
+  <title>Cutex — Your space to think</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="companion.css">
+  <link rel="stylesheet" href="motion-voice.css">
+  <script src="vendor/marked.js" defer></script>
+  <script src="vendor/purify.js" defer></script>
+  <script src="vendor/lucide.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg class="svg-defs" aria-hidden="true"><defs>
+    <symbol id="cutex-mark" viewBox="0 0 32 32"><path d="M16 15C3-5-5 3 15 16C-5 29 3 37 16 17C29 37 37 29 17 16C37 3 29-5 16 15Z" fill="currentColor"/></symbol>
+    <symbol id="orbital" viewBox="0 0 240 240">
+      <circle cx="120" cy="120" r="93" fill="none" stroke="currentColor" stroke-opacity=".1"/>
+      <circle cx="120" cy="120" r="76" fill="none" stroke="currentColor" stroke-opacity=".08"/>
+      <g fill="none" stroke="currentColor" stroke-width=".8">
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(-42 120 120)"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(-27 120 120)" stroke-opacity=".8"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(-12 120 120)" stroke-opacity=".6"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(3 120 120)" stroke-opacity=".4"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(18 120 120)" stroke-opacity=".3"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(33 120 120)" stroke-opacity=".4"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(48 120 120)" stroke-opacity=".6"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(63 120 120)" stroke-opacity=".8"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(78 120 120)"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(93 120 120)" stroke-opacity=".8"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(108 120 120)" stroke-opacity=".5"/>
+        <ellipse cx="120" cy="120" rx="85" ry="35" transform="rotate(123 120 120)" stroke-opacity=".3"/>
+      </g><circle cx="178" cy="58" r="4" fill="currentColor"/><circle cx="67" cy="177" r="2" fill="currentColor"/>
+    </symbol>
+  </defs></svg>
+
+  <div class="app-shell" id="app">
+    <aside class="sidebar" aria-label="Main navigation">
+      <div class="brand pywebview-drag-region"><svg><use href="#cutex-mark"/></svg><span>cutex<span class="brand-period">.</span></span><span class="version">02</span></div>
+      <button class="new-chat" data-action="new"><i data-lucide="plus"></i>New conversation<kbd>Ctrl N</kbd></button>
+      <nav class="nav-list">
+        <button class="nav-item active" data-view="chat"><i data-lucide="messages-square"></i>Conversation<span class="nav-dot"></span></button>
+        <button class="nav-item" data-view="memories"><i data-lucide="notebook-pen"></i>Memories<span class="count" id="memory-count">0</span></button>
+        <button class="nav-item" data-view="companion"><i data-lucide="orbit"></i>Companion</button>
+      </nav>
+      <div class="session-section">
+        <div class="section-label">YOUR CONVERSATIONS<button class="icon-button tiny" data-action="search" title="Search conversations" aria-label="Search conversations"><i data-lucide="search"></i></button></div>
+        <label class="session-search" id="search-wrap" hidden><i data-lucide="search"></i><input id="session-search" placeholder="Search your conversations" aria-label="Search your conversations"></label>
+        <div class="sessions" id="sessions"></div>
+      </div>
+      <div class="sidebar-bottom">
+        <button class="utility-item" data-action="import"><i data-lucide="folder-input"></i>Bring a conversation</button>
+        <button class="utility-item" data-action="palette"><i data-lucide="command"></i>Quick actions<kbd>Ctrl K</kbd></button>
+        <button class="utility-item" data-action="settings"><i data-lucide="settings-2"></i>Settings</button>
+        <div class="saved-indicator"><span class="status-dot"></span><span id="save-status">Saved on this device</span><i data-lucide="shield-check"></i></div>
+        <button class="profile" data-view="companion"><span class="profile-avatar"><svg><use href="#cutex-mark"/></svg></span><span><strong class="persona-name">Anna</strong><small>In your corner</small></span><i data-lucide="chevron-right"></i></button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <div class="breadcrumbs"><button class="mobile-brand" data-action="palette" aria-label="Open navigation and quick actions"><svg><use href="#cutex-mark"/></svg>cutex.</button><span class="workspace-label pywebview-drag-region">Your space</span><span class="slash pywebview-drag-region">/</span><span id="page-title" class="pywebview-drag-region">New conversation</span><span class="drag-spacer pywebview-drag-region" aria-hidden="true"></span></div>
+        <div class="window-actions">
+          <button class="overlay-button" data-action="overlay" title="Switch to compact overlay · Alt Shift O"><i data-lucide="panels-top-left"></i><span id="overlay-label">Open overlay</span><kbd>↗</kbd></button>
+          <button class="icon-button pin-button" data-action="pin" aria-label="Keep window on top" title="Keep on top" aria-pressed="false"><i data-lucide="pin"></i></button>
+          <span class="window-divider"></span>
+          <button class="icon-button" data-action="minimize" aria-label="Collapse to companion orb" title="Collapse to orb · Alt X"><i data-lucide="minus"></i></button>
+          <button class="icon-button close-button" data-action="quit" aria-label="Close and save workspace" title="Close · conversations save automatically"><i data-lucide="x"></i></button>
+        </div>
+      </header>
+
+      <div id="connection-banner" class="connection-banner" hidden><i data-lucide="key-round"></i><span>Connect Gemini or Google Cloud Vertex AI to start.</span><button data-action="settings">Let’s set up <span>↗</span></button></div>
+
+      <div class="workspace">
+        <main class="content-column">
+          <section class="view chat-view" id="view-chat" aria-label="Conversation">
+            <div class="conversation-toolbar"><div class="mode-switch" role="group" aria-label="Conversation mode">
+              <button data-mode="companion" class="active" aria-pressed="true"><i data-lucide="sparkles"></i>Companion</button>
+              <button data-mode="focus" aria-pressed="false"><i data-lucide="scan-line"></i>Focus</button>
+              <button data-mode="study" aria-pressed="false"><i data-lucide="book-open"></i>Study</button>
+              <button data-mode="play" aria-pressed="false"><i data-lucide="gamepad-2"></i>Play</button>
+            </div><div class="chat-tools"><button class="icon-button" data-action="export" aria-label="Export conversation" title="Export conversation"><i data-lucide="download"></i></button><button class="icon-button" data-action="chat-menu" aria-label="Conversation actions" title="Conversation actions"><i data-lucide="ellipsis"></i></button></div></div>
+
+            <div class="conversation-scroll" id="conversation-scroll">
+              <div class="welcome" id="welcome">
+                <div class="welcome-art" aria-hidden="true"><div class="orb-halo"></div><svg class="orbital-art"><use href="#orbital"/></svg><span class="art-caption">A MIND ALONGSIDE YOURS</span></div>
+                <div class="eyebrow"><span class="little-line"></span><span id="greeting">MAKE YOURSELF AT HOME</span></div>
+                <h1>A little company.<br><em>A clearer mind.</em></h1>
+                <p class="welcome-copy">A place to think out loud, figure things out,<br>or just have someone along for the ride.</p>
+                <div class="welcome-divider"><span>WHERE SHALL WE START?</span><span class="tiny-star">✳</span></div>
+                <div class="starters">
+                  <button class="starter" data-starter="screen"><span class="starter-icon"><i data-lucide="scan-eye"></i></span><strong>A fresh pair of eyes</strong><span>Make sense of what’s on screen</span><i class="starter-arrow" data-lucide="arrow-up-right"></i></button>
+                  <button class="starter" data-starter="think"><span class="starter-icon"><i data-lucide="lightbulb"></i></span><strong>Untangle a thought</strong><span>Find a way forward, together</span><i class="starter-arrow" data-lucide="arrow-up-right"></i></button>
+                  <button class="starter" data-starter="hang"><span class="starter-icon"><i data-lucide="coffee"></i></span><strong>Just a little company</strong><span>No agenda. Let’s hang out.</span><i class="starter-arrow" data-lucide="arrow-up-right"></i></button>
+                </div>
+              </div>
+              <div id="messages" class="messages" role="log" aria-label="Conversation messages" aria-live="off"></div>
+            </div>
+            <button class="jump-latest" id="jump-latest" hidden><i data-lucide="arrow-down"></i>Jump to latest</button>
+            <div class="composer-dock">
+              <div class="attachment-preview" id="attachment-preview" hidden></div>
+              <div id="voice-draft" class="voice-draft" aria-live="polite" hidden></div>
+              <form class="composer" id="composer">
+                <label class="sr-only" for="prompt">Message your companion</label>
+                <textarea id="prompt" rows="2" maxlength="32000" placeholder="What’s on your mind?" spellcheck="true"></textarea>
+                <div class="composer-toolbar"><div class="composer-tools">
+                  <button type="button" class="capture-button" data-action="capture-menu" title="Attach a screen capture"><i data-lucide="scan"></i><span>Share screen</span><i data-lucide="chevron-down"></i></button>
+                  <span class="toolbar-separator"></span>
+                  <button type="button" class="composer-memory" data-view="memories" title="Manage what your companion remembers"><i data-lucide="notebook-pen"></i><span id="composer-memory-count">Memory</span></button>
+                </div><div class="send-tools"><button type="button" class="icon-button record-button" id="record-button" data-action="record" title="Record voice · Alt Shift V" aria-label="Record a voice message"><i data-lucide="mic"></i></button><button type="button" class="icon-button" id="mute-button" data-action="stop-audio" hidden title="Stop read-aloud" aria-label="Stop read-aloud"><i data-lucide="volume-x"></i></button><span class="enter-hint">Enter ↵</span><button type="submit" class="send-button" id="send-button" title="Send message" aria-label="Send message"><i data-lucide="arrow-up"></i></button><button type="button" class="send-button stop-button" id="stop-button" data-action="stop" hidden title="Stop response" aria-label="Stop response"><i data-lucide="square"></i></button></div></div>
+              </form>
+              <div class="composer-footnote"><span><i data-lucide="shield"></i><span id="privacy-note">Your screen stays yours until you share it.</span></span><button data-action="settings" class="model-indicator"><span class="status-dot"></span><span id="model-label">Gemini</span><i data-lucide="chevron-down"></i></button></div>
+            </div>
+          </section>
+
+          <section class="view library-view" id="view-memories" hidden aria-label="Memory library">
+            <div class="page-heading"><div><span class="eyebrow">THE THINGS THAT STAY</span><h1>A little history.<br><em>A deeper connection.</em></h1><p>Keep the details that make this space feel like yours.</p></div><button class="primary-button" data-action="add-memory"><i data-lucide="plus"></i>Add a memory</button></div>
+            <div class="library-toolbar"><span id="library-summary">Your shared memories</span><button class="text-button" data-action="summarize"><i data-lucide="sparkles"></i>Make a diary from this chat</button></div>
+            <div id="memory-list" class="memory-list"></div>
+            <div class="library-note"><i data-lucide="shield-check"></i><p>You choose what’s remembered. Only memories marked “In context” are sent with your messages. Your original conversations stay intact.</p></div>
+          </section>
+
+          <section class="view companion-view" id="view-companion" hidden aria-label="Your companion">
+            <div class="page-heading"><div><span class="eyebrow">SOMEONE IN YOUR CORNER</span><h1>Good company.<br><em>Your kind of energy.</em></h1><p>A personality that feels right, with a mind ready to help.</p></div><svg class="companion-art" aria-hidden="true"><use href="#orbital"/></svg></div>
+            <div class="companion-library-heading"><span class="section-label">YOUR COMPANIONS</span><button type="button" class="text-button" id="new-companion"><i data-lucide="plus"></i>New companion</button></div>
+            <div id="saved-companions" class="saved-companions" aria-label="Saved companions"></div>
+            <div class="section-label">START WITH A PERSONALITY</div>
+            <div id="persona-presets" class="persona-presets"></div>
+            <label for="original-personas" class="section-label">THE ORIGINAL PERSONALITIES, TOO</label><select id="original-personas" style="width:100%;margin:12px 0 20px"><option value="">Choose from your original persona library…</option></select>
+            <form id="persona-form" class="persona-form">
+              <div class="avatar-editor"><div id="avatar-preview" class="avatar-preview" aria-label="Companion avatar"></div><div class="avatar-options"><label class="secondary-button avatar-upload" for="avatar-file"><i data-lucide="image-plus"></i>Choose image</label><input type="file" id="avatar-file" accept="image/png,image/jpeg,image/webp" class="sr-only"><button class="text-button" type="button" id="reset-avatar">Use Cutex mark</button><p class="field-hint">Their own face on the floating orb. Images stay local.</p><div class="avatar-icons" aria-label="Choose an avatar icon"><button type="button" data-avatar-icon="🐈" aria-label="Cat icon">🐈</button><button type="button" data-avatar-icon="🤖" aria-label="Robot icon">🤖</button><button type="button" data-avatar-icon="🌙" aria-label="Moon icon">🌙</button><button type="button" data-avatar-icon="⭐" aria-label="Star icon">⭐</button><button type="button" data-avatar-icon="💗" aria-label="Heart icon">💗</button></div></div></div>
+              <label for="persona-name">A name to call them</label><input id="persona-name" maxlength="40" required><label for="persona-instructions">What are they like?</label><textarea id="persona-instructions" rows="6" maxlength="12000" placeholder="Their personality, tone, and how you’d like them to help."></textarea><div class="form-footer"><span id="companion-save-hint">Changes apply to this saved companion. Conversations stay intact.</span><button class="primary-button" type="submit">Save companion<i data-lucide="arrow-right"></i></button></div></form>
+          </section>
+        </main>
+
+        <aside class="context-rail" aria-label="Companion and context">
+          <div class="rail-heading"><span class="section-label">IN YOUR CORNER</span><span class="available-label"><span class="status-dot"></span><span id="companion-status">Ready when you are</span></span></div>
+          <div class="companion-card"><div class="mini-orb"><svg aria-hidden="true"><use href="#orbital"/></svg></div><div><h2 class="persona-name">Anna</h2><span id="mode-description">A curious mind, a familiar presence.</span></div><button class="icon-button tiny" data-view="companion" aria-label="Customize companion" title="Customize companion"><i data-lucide="sliders-horizontal"></i></button></div>
+          <div class="rail-divider"></div>
+          <div class="rail-section"><div class="section-label">A LITTLE CONTEXT<span class="context-badge" id="context-count">YOU’RE IN CONTROL</span></div><div class="context-state" id="context-state"><span class="context-state-icon"><i data-lucide="monitor"></i></span><strong>Just us, for now.</strong><p>Share a screen when you’d like<br>another pair of eyes.</p></div>
+          <div class="context-options">
+            <label class="toggle-row"><span><i data-lucide="app-window"></i>Window context</span><input type="checkbox" data-setting="share_context"><span class="switch" aria-hidden="true"></span></label>
+            <label class="toggle-row"><span><i data-lucide="globe-2"></i>Search the web</span><input type="checkbox" data-setting="grounding_enabled"><span class="switch" aria-hidden="true"></span></label>
+            <label class="toggle-row"><span><i data-lucide="clock-3"></i>Date & time</span><input type="checkbox" data-setting="share_time"><span class="switch" aria-hidden="true"></span></label>
+          </div><p class="context-fineprint">Window context shares the current app name and title. Screenshots are always your call.</p></div>
+          <div class="rail-divider"></div>
+          <div class="proactive-section"><div class="proactive-header"><div><i data-lucide="sparkles"></i><strong>A gentle nudge</strong></div><label class="bare-toggle"><span class="sr-only">Enable proactive observations</span><input type="checkbox" data-setting="autopilot_enabled"><span class="switch" aria-hidden="true"></span></label></div><p id="proactive-description">A little thought alongside your day.<br>You choose what it can see.</p><div class="proactive-state" id="proactive-state"><span class="small-ring"></span>Quiet until you need me</div></div>
+          <div class="rail-bottom"><svg><use href="#cutex-mark"/></svg><p>A little less alone.<br>A little more possible.</p><span>CUTEX · YOUR DESKTOP COMPANION</span></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <div class="popover" id="capture-menu" hidden><span class="popover-caption">SHARE ON YOUR TERMS</span><button data-action="capture-screen"><i data-lucide="monitor"></i><span>Capture primary screen<small>Preview before sending</small></span></button><button data-action="capture-region"><i data-lucide="scan"></i><span>Select a region<small>Just the part that matters</small></span><kbd>Alt ⇧ S</kbd></button><span class="popover-caption">AUTO-ATTACH ON EVERY MESSAGE · ALT 0</span><button data-capture-mode="off">No automatic capture</button><button data-capture-mode="region">Select a region on each send</button><button data-capture-mode="screen">Capture primary screen on each send</button></div>
+  <div class="popover" id="chat-menu" hidden><button data-action="summarize"><i data-lucide="notebook-pen"></i>Save a memory diary</button><button data-action="export"><i data-lucide="download"></i>Export conversation</button><button data-action="collapse-memory"><i data-lucide="brain"></i>Collapse to memory &amp; start fresh</button><button data-action="export-memory"><i data-lucide="file-down"></i>Export memory diary as TXT</button><button data-action="refresh"><i data-lucide="refresh-cw"></i>Refresh interface</button><button data-action="clear"><i data-lucide="eraser"></i>Clear view / start fresh</button><button class="danger-text" data-action="delete-chat"><i data-lucide="trash-2"></i>Delete conversation</button></div>
+
+  <dialog id="settings-dialog" class="settings-dialog"><div class="dialog-heading"><div><span class="eyebrow">MAKE YOURSELF AT HOME</span><h2>Your preferences.</h2></div><button class="icon-button" data-close="settings-dialog" aria-label="Close settings"><i data-lucide="x"></i></button></div><div class="settings-body">
+    <section class="settings-section"><div class="settings-section-title"><i data-lucide="cpu"></i><h3>The mind behind the company</h3></div><p>Choose Gemini API or Google Cloud Vertex AI. Google bills usage to your key or project.</p>
+<label for="provider-input">Connection</label><select id="provider-input" class="provider-select"><option value="gemini">Gemini API key</option><option value="vertex">Google Cloud Vertex AI</option></select>
+<div id="cloud-fields" class="cloud-fields" hidden><label for="vertex-project">Cloud project ID</label><input id="vertex-project" placeholder="your-project-id" maxlength="63"><label for="vertex-account">Google account</label><input id="vertex-account" type="email" placeholder="you@example.com" maxlength="254"><label for="vertex-location">Location</label><input id="vertex-location" value="global" maxlength="40"><small>Uses this device's Application Default Credentials. Credentials stay outside Cutex and its exports. Sign in with gcloud auth application-default login if needed.</small></div>
+<div class="connection-test"><button class="secondary-button" type="button" data-action="test-connection">Save &amp; test connection</button><small id="connection-status" role="status"></small></div><form id="key-form"><label for="api-key">Gemini API key<span id="key-status">Not connected</span></label><div class="input-action"><input type="password" id="api-key" autocomplete="off" placeholder="Paste a new API key" maxlength="512"><button class="secondary-button" type="submit">Save key</button></div><small>Protected by Windows on this device. Never included in an export.</small></form><div class="model-field"><label for="model-input">Model<button class="text-button" data-action="refresh-models" id="refresh-models"><i data-lucide="refresh-cw"></i>Refresh available</button></label><input id="model-input" list="available-models" placeholder="Gemini model ID"><datalist id="available-models"><option value="gemini-3.8-flash">Gemini 3.8 Flash · Recommended</option><option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</option><option value="gemini-4-argon">Gemini 4 Argon</option></datalist><small id="model-help">Use a model available to your key. Refresh checks with Google.</small></div><button class="text-button external-link" data-url="https://aistudio.google.com/apikey">Get a key in Google AI Studio<i data-lucide="arrow-up-right"></i></button></section>
+    <form id="settings-form"><section class="settings-section"><div class="settings-section-title"><i data-lucide="mic"></i><h3>A voice in your corner</h3></div><label class="toggle-row"><span>Speak replies to voice messages</span><input type="checkbox" id="voice-replies"><span class="switch" aria-hidden="true"></span></label><p class="field-hint">Uses a Windows voice on this device. Only records when you start it; stops after 2 minutes. Clips stay in Cutex memory and are sent to Google when you press Send. Transcripts are saved in chat.</p><p class="field-hint">Alt Shift V starts or stops recording. Read or mute any written reply from its controls.</p></section><section class="settings-section"><div class="settings-section-title"><i data-lucide="palette"></i><h3>The way it feels</h3></div><label for="theme-select">Appearance</label><div class="appearance-options"><button type="button" data-theme-choice="dark" class="appearance-option"><span class="theme-preview dark-preview"><span></span><span></span></span><span>After hours</span><i data-lucide="check"></i></button><button type="button" data-theme-choice="light" class="appearance-option"><span class="theme-preview light-preview"><span></span><span></span></span><span>Daylight</span><i data-lucide="check"></i></button></div><input type="hidden" id="theme-select" value="dark"><label for="opacity-input">Window opacity<span id="opacity-value">100%</span></label><input type="range" id="opacity-input" min="20" max="100" value="100"><p class="field-hint">Dial it down when you’re sharing your screen space.</p></section><section class="settings-section"><div class="settings-section-title"><i data-lucide="sparkles"></i><h3>A gentle nudge</h3></div><label class="toggle-row"><span>Allow periodic screen snapshots</span><input type="checkbox" id="autopilot-screenshots"><span class="switch" aria-hidden="true"></span></label><p class="field-hint">When Autopilot is on, snapshots of your primary screen are sent to Gemini at the interval below. Captures stay in memory. Pause anytime from the orb or Alt Shift P.</p><label for="autopilot-interval">Minimum time between observations</label><select id="autopilot-interval"><option value="60">1 minute</option><option value="180">3 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option><option value="1800">30 minutes</option></select><label for="autopilot-schedule">Optional interval sequence (seconds)</label><input id="autopilot-schedule" placeholder="120, 200, 360, 260, 300" maxlength="160"><p class="field-hint">Leave empty to use the interval above. Your activity resets the sequence.</p><label for="autopilot-cooldown">Quiet time after you speak (seconds)</label><input id="autopilot-cooldown" type="number" min="0" max="3600" value="50"><p class="field-hint">Skips active conversations and unchanged snapshots. With snapshots off, only permitted window titles are used. No audio is recorded.</p></section><div class="settings-actions"><span>Conversations save automatically.</span><button type="submit" class="primary-button">Save preferences<i data-lucide="check"></i></button></div></form>
+    <section class="shortcuts"><span class="section-label">A FEW LITTLE SHORTCUTS</span><div><span>Workspace / round companion orb</span><kbd>Alt X</kbd></div><div><span>Quick reply without the workspace</span><kbd>Alt Shift Q</kbd></div><div><span>Hide / show Cutex</span><kbd>Alt Shift H</kbd></div><div><span>Pause / resume Autopilot</span><kbd>Alt Shift P</kbd></div><div><span>Cycle automatic capture mode</span><kbd>Alt 0</kbd></div><div><span>Window context / date and time</span><kbd>Alt 5 / Alt 7</kbd></div><div><span>Switch theme</span><kbd>Alt D</kbd></div><div><span>Increase / decrease opacity</span><kbd>Alt W / Alt S</kbd></div><div><span>Move window or orb</span><kbd>Alt Arrows / Alt 8 4 2 6</kbd></div><div><span>Focus conversation</span><kbd>Alt A</kbd></div><div><span>Compact overlay</span><kbd>Alt Shift O</kbd></div><div><span>Capture a region</span><kbd>Alt Shift S</kbd></div><div><span>Quick actions</span><kbd>Ctrl K</kbd></div><div><span>New conversation</span><kbd>Ctrl N</kbd></div><div><span>New line</span><kbd>Shift Enter</kbd></div></section>
+  </div></dialog>
+
+  <dialog class="memory-dialog" id="memory-dialog"><div class="dialog-heading"><div><span class="eyebrow">WORTH REMEMBERING</span><h2>Keep a little detail.</h2></div><button class="icon-button" data-close="memory-dialog" aria-label="Close memory editor"><i data-lucide="x"></i></button></div><form id="memory-form"><label for="memory-title">Give it a name</label><input id="memory-title" maxlength="100" placeholder="A preference, a project, a little about you…" required><label for="memory-text">What should stay?</label><textarea id="memory-text" rows="7" maxlength="16000" placeholder="Only what you want your companion to remember." required></textarea><p class="field-hint">This note will be included as context in future conversations until you switch it off.</p><div class="dialog-actions"><button type="button" class="secondary-button" data-close="memory-dialog">Cancel</button><button class="primary-button" type="submit">Save memory<i data-lucide="check"></i></button></div></form></dialog>
+
+  <dialog class="palette-dialog" id="palette-dialog"><div class="palette-search"><i data-lucide="search"></i><input id="command-search" placeholder="What would you like to do?" aria-label="Search quick actions" autocomplete="off"><kbd>Esc</kbd></div><div id="command-list" class="command-list"></div><div class="palette-footer">A shortcut to your space.<span><kbd>↑</kbd><kbd>↓</kbd> navigate <kbd>↵</kbd> select</span></div></dialog>
+
+  <dialog class="confirm-dialog" id="confirm-dialog"><span class="dialog-warning"><i data-lucide="trash-2"></i></span><h2 id="confirm-title">Delete this conversation?</h2><p id="confirm-copy">This removes the local conversation. Export a copy first if you want to keep it.</p><div class="dialog-actions"><button class="secondary-button" id="confirm-cancel">Keep it</button><button class="danger-button" id="confirm-accept">Delete</button></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div class="sr-only" id="live-status" role="status" aria-live="polite"></div>
+</body>
+</html>

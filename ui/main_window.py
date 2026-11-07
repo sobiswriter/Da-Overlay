@@ -1019,9 +1019,10 @@ class OverlayApp:
                 grounding_enabled=self.grounding_enabled.get(),
                 active_datetime=active_datetime
             )
+            full_text = ""
             for chunk in response_stream:
-                self.chunk_queue.put(chunk)
-            # Put a sentinel value to indicate the end of the stream
+                full_text += chunk
+            self.chunk_queue.put(full_text)
             self.chunk_queue.put(None)
 
         # Start the animation loop on the main thread
@@ -1030,48 +1031,102 @@ class OverlayApp:
         threading.Thread(target=stream_worker, daemon=True).start()
 
     def _process_animation_queue(self, bubble, ai_message_data):
-        """Processes the queue of chunks to animate them sequentially."""
+        """Processes the full response text, splits it into fragments, and animates sequence."""
         try:
-            chunk = self.chunk_queue.get_nowait()
+            full_text = self.chunk_queue.get_nowait()
+            if full_text is None:
+                try: self.chunk_queue.get_nowait()
+                except queue.Empty: pass
+                return
+            
+            try: self.chunk_queue.get_nowait()
+            except queue.Empty: pass
 
-            if chunk is None:  # End of stream sentinel
-                # Finalization logic
-                if len(self.conversation_history) >= 2:
-                    user_prompt_msg = self.conversation_history[-2]
-                    if user_prompt_msg.get("role") == "user" and user_prompt_msg["parts"][0]["text"].startswith("(System Observation)"):
-                        self.conversation_history.pop(-2)
-                ai_message_data["parts"][0]["text"] = self.streamed_text_buffer
-                # Render full markdown after streaming finishes
-                bubble.set_text(self.streamed_text_buffer, is_final=True)
-                if self.streamed_text_buffer and not self.streamed_text_buffer.lower().startswith("error"):
-                    bubble.add_copy_button()
-                self.scroll_to_bottom()
-                return # End the animation loop
-
-            if self.is_first_chunk_received:
+            if full_text.startswith("Error"):
                 if self.thinking_animation_id:
                     self.root.after_cancel(self.thinking_animation_id)
                     self.thinking_animation_id = None
-                bubble.set_text("")
-                self.is_first_chunk_received = False
-            
-            # Start animating the letters of this chunk, and when done, process the next chunk
-            self._animate_letter(bubble, chunk, 0, lambda: self._process_animation_queue(bubble, ai_message_data))
+                bubble.set_text(full_text, is_final=True)
+                return
+
+            import re
+            # Native text splitting without LLM prompt hacks
+            if '\n\n' in full_text:
+                fragments = [f.strip() for f in full_text.split('\n\n') if f.strip()]
+            else:
+                parts = re.split(r'(?<=[.!?])\s+', full_text.strip())
+                fragments = [p.strip() for p in parts if p.strip()]
+
+            if not fragments:
+                fragments = [full_text.strip()]
+
+            # Edge case cleanup
+            if len(self.conversation_history) >= 2:
+                user_prompt_msg = self.conversation_history[-2]
+                if user_prompt_msg.get("role") == "user" and user_prompt_msg["parts"][0]["text"].startswith("(System Observation)"):
+                    self.conversation_history.pop(-2)
+
+            self._render_fragments_sequentially(fragments, 0, bubble, ai_message_data)
 
         except queue.Empty:
-            # If the queue is empty, check again in a moment
+            # Wait for stream_worker to put the full string in the queue
             self.root.after(50, self._process_animation_queue, bubble, ai_message_data)
 
-    def _animate_letter(self, bubble, text, index, on_finish_callback):
-        """Recursively adds one letter at a time, then calls the on_finish_callback."""
-        if index < len(text):
-            self.streamed_text_buffer += text[index]
-            # Defer markdown rendering until stream is totally complete to prevent lag
-            bubble.set_text(self.streamed_text_buffer, is_final=False)
-            self.root.after(1, self._animate_letter, bubble, text, index + 1, on_finish_callback)
+    def _render_fragments_sequentially(self, fragments, index, current_bubble, first_msg_data):
+        if index >= len(fragments):
+            return
+            
+        fragment = fragments[index]
+        
+        if index > 0:
+            ai_message_data = {"role": "model", "parts": [{"text": "..."}]}
+            self.conversation_history.append(ai_message_data)
+            current_bubble = self.show_message(ai_message_data, is_rebuilding=False)
+            msg_data_ref = ai_message_data
         else:
-            # This chunk is done, call the callback to start processing the next one
-            on_finish_callback()
+            msg_data_ref = first_msg_data
+            if self.thinking_animation_id:
+                self.root.after_cancel(self.thinking_animation_id)
+                self.thinking_animation_id = None
+            current_bubble.set_text("")
+            
+        delay_ms = min(2000, max(500, len(fragment) * 15)) if index > 0 else 0
+        
+        def start_typing():
+            if self.thinking_animation_id:
+                self.root.after_cancel(self.thinking_animation_id)
+                self.thinking_animation_id = None
+            self._animate_letter_for_fragment(current_bubble, fragment, 0, lambda: self._on_fragment_done(fragments, index, msg_data_ref))
+
+        if index > 0:
+            self.thinking_animation_id = self.root.after(10, self._thinking_animation, current_bubble)
+            self.root.after(delay_ms, start_typing)
+        else:
+            start_typing()
+
+    def _on_fragment_done(self, fragments, index, msg_data_ref):
+        msg_data_ref["parts"][0]["text"] = fragments[index]
+        pause_before_next = min(1000, max(300, len(fragments[index]) * 10))
+        self.root.after(pause_before_next, lambda: self._render_fragments_sequentially(fragments, index + 1, None, None))
+        
+    def _animate_letter_for_fragment(self, bubble, text, char_index, on_finish):
+        if char_index == 0:
+            bubble.set_text("")
+            bubble._current_typing_text = ""
+            
+        if char_index < len(text):
+            bubble._current_typing_text += text[char_index]
+            bubble.set_text(bubble._current_typing_text, is_final=False)
+            
+            import random
+            typing_speed = random.randint(15, 35)
+            self.root.after(typing_speed, self._animate_letter_for_fragment, bubble, text, char_index + 1, on_finish)
+        else:
+            bubble.set_text(bubble._current_typing_text, is_final=True)
+            if bubble._current_typing_text and not bubble._current_typing_text.lower().startswith("error"):
+                bubble.add_copy_button()
+            self.scroll_to_bottom()
+            on_finish()
 
     # PRESERVED: Your copy_to_clipboard method
     def copy_to_clipboard(self, text):
